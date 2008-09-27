@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-// (C) Copyright Ion Gaztanaga 2005-2007. Distributed under the Boost
+// (C) Copyright Ion Gaztanaga 2005-2008. Distributed under the Boost
 // Software License, Version 1.0. (See accompanying file
 // LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
@@ -22,9 +22,6 @@
 #include <boost/interprocess/creation_tags.hpp>
 #include <boost/interprocess/windows_shared_memory.hpp>
 #include <boost/interprocess/detail/move.hpp>
-
-//!\file
-//!Describes a named shared memory object allocation user class. 
 
 namespace boost {
 namespace interprocess {
@@ -48,20 +45,30 @@ template
       >
 class basic_managed_windows_shared_memory 
    : public detail::basic_managed_memory_impl
-      <CharType, AllocationAlgorithm, IndexType>
+      <CharType, AllocationAlgorithm, IndexType
+      ,detail::managed_open_or_create_impl<windows_shared_memory>::ManagedOpenOrCreateUserOffset>
 {
    /// @cond
    private:
    typedef detail::basic_managed_memory_impl 
-      <CharType, AllocationAlgorithm, IndexType>   base_t;
-
+      <CharType, AllocationAlgorithm, IndexType,
+      detail::managed_open_or_create_impl<windows_shared_memory>::ManagedOpenOrCreateUserOffset>   base_t;
    typedef detail::create_open_func<base_t>        create_open_func_t;
 
    basic_managed_windows_shared_memory *get_this_pointer()
    {  return this;   }
+
+   private:
+   typedef typename base_t::char_ptr_holder_t   char_ptr_holder_t;
    /// @endcond
 
    public: //functions
+
+   //!Default constructor. Does nothing.
+   //!Useful in combination with move semantics
+   basic_managed_windows_shared_memory()
+   {}
+
    //!Creates shared memory and creates and places the segment manager. 
    //!This can throw.
    basic_managed_windows_shared_memory
@@ -84,20 +91,39 @@ class basic_managed_windows_shared_memory
                 detail::DoOpenOrCreate))
    {}
 
-   //!Connects to a created shared memory and it's the segment manager.
-   //!Never throws.
-   basic_managed_windows_shared_memory (open_only_t open_only, const char* name, 
-                              const void *addr = 0)
+   //!Connects to a created shared memory and its segment manager.
+   //!This can throw.
+   basic_managed_windows_shared_memory
+      (open_only_t open_only, const char* name, const void *addr = 0)
       : m_wshm(open_only, name, read_write, addr, 
                 create_open_func_t(get_this_pointer(), 
                 detail::DoOpen))
+   {}
+
+   //!Connects to a created shared memory and its segment manager
+   //!in copy_on_write mode.
+   //!This can throw.
+   basic_managed_windows_shared_memory
+      (open_copy_on_write_t, const char* name, const void *addr = 0)
+      : m_wshm(open_only, name, copy_on_write, addr, 
+                create_open_func_t(get_this_pointer(), detail::DoOpen))
+   {}
+
+   //!Connects to a created shared memory and its segment manager
+   //!in read-only mode.
+   //!This can throw.
+   basic_managed_windows_shared_memory
+      (open_read_only_t, const char* name, const void *addr = 0)
+      : base_t()
+      , m_wshm(open_only, name, read_only, addr, 
+                create_open_func_t(get_this_pointer(), detail::DoOpen))
    {}
 
    //!Moves the ownership of "moved"'s managed memory to *this.
    //!Does not throw
    #ifndef BOOST_INTERPROCESS_RVALUE_REFERENCE
    basic_managed_windows_shared_memory
-      (detail::moved_object<basic_managed_windows_shared_memory> &moved)
+      (detail::moved_object<basic_managed_windows_shared_memory> moved)
    {  this->swap(moved.get());   }
    #else
    basic_managed_windows_shared_memory(basic_managed_windows_shared_memory &&moved)
@@ -108,7 +134,7 @@ class basic_managed_windows_shared_memory
    //!Does not throw
    #ifndef BOOST_INTERPROCESS_RVALUE_REFERENCE
    basic_managed_windows_shared_memory &operator=
-      (detail::moved_object<basic_managed_windows_shared_memory> &moved)
+      (detail::moved_object<basic_managed_windows_shared_memory> moved)
    {  this->swap(moved.get());   return *this;  }
    #else
    basic_managed_windows_shared_memory &operator=
@@ -132,10 +158,44 @@ class basic_managed_windows_shared_memory
       m_wshm.swap(other.m_wshm);
    }
    /// @cond
+
+   //!Tries to find a previous named allocation address. Returns a memory
+   //!buffer and the object count. If not found returned pointer is 0.
+   //!Never throws.
+   template <class T>
+   std::pair<T*, std::size_t> find  (char_ptr_holder_t name)
+   {
+      if(m_wshm.get_mapped_region().get_mode() == read_only){
+         return base_t::template find_no_lock<T>(name);
+      }
+      else{
+         return base_t::template find<T>(name);
+      }
+   }
+
    private:
    detail::managed_open_or_create_impl<windows_shared_memory, false> m_wshm;
    /// @endcond
 };
+
+///@cond
+
+//!Trait class to detect if a type is
+//!movable
+template
+      <
+         class CharType, 
+         class AllocationAlgorithm, 
+         template<class IndexConfig> class IndexType
+      >
+struct is_movable<basic_managed_windows_shared_memory
+   <CharType,  AllocationAlgorithm, IndexType>
+>
+{
+   static const bool value = true;
+};
+
+///@endcond
 
 }  //namespace interprocess {
 }  //namespace boost {

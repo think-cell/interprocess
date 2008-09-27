@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-// (C) Copyright Ion Gaztanaga 2005-2007. Distributed under the Boost
+// (C) Copyright Ion Gaztanaga 2005-2008. Distributed under the Boost
 // Software License, Version 1.0. (See accompanying file
 // LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
@@ -20,7 +20,7 @@
 #include <boost/interprocess/sync/scoped_lock.hpp>
 #include <boost/interprocess/sync/interprocess_mutex.hpp>
 #include <boost/interprocess/sync/interprocess_condition.hpp>
-#include <limits.h>
+#include <climits>
 
 
 //!\file
@@ -265,6 +265,8 @@ class interprocess_upgradable_mutex
    typedef base_constants_t<0> constants;
    /// @endcond
 };
+
+/// @cond
 
 template <int Dummy>
 const unsigned interprocess_upgradable_mutex::base_constants_t<Dummy>::max_readers;
@@ -633,8 +635,9 @@ inline bool interprocess_upgradable_mutex::try_unlock_sharable_and_lock_upgradab
    return true;
 }
 
-}  //namespace interprocess {
+/// @endcond
 
+}  //namespace interprocess {
 }  //namespace boost {
 
 

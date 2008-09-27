@@ -61,7 +61,7 @@ template class boost::interprocess::multimap
 //Customize managed_shared_memory class
 typedef basic_managed_shared_memory
    <char,
-    simple_seq_fit<mutex_family, void*>,
+    simple_seq_fit<mutex_family, offset_ptr<void> >,
     map_index
    > my_managed_shared_memory;
 
@@ -132,7 +132,6 @@ int main ()
       return 1;
    }
 
-   using namespace boost::interprocess::detail;
    if(0 != test::set_test_copyable<my_managed_shared_memory
                         ,MyShmSet
                         ,MyStdSet

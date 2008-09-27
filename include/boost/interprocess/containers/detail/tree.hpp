@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-// (C) Copyright Ion Gaztanaga 2005-2007. Distributed under the Boost
+// (C) Copyright Ion Gaztanaga 2005-2008. Distributed under the Boost
 // Software License, Version 1.0. (See accompanying file
 // LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
@@ -87,10 +87,16 @@ struct value_compare_impl
 template <class T, class VoidPointer>
 struct rbtree_node
    :  public bi::make_set_base_hook
-         <bi::void_pointer<VoidPointer>, bi::link_mode<bi::normal_link> >::type
+         < bi::void_pointer<VoidPointer>
+         , bi::link_mode<bi::normal_link>
+         , bi::optimize_size<true>
+         >::type
 {
    typedef typename bi::make_set_base_hook
-      <bi::void_pointer<VoidPointer>, bi::link_mode<bi::normal_link> >::type   hook_type;
+      < bi::void_pointer<VoidPointer>
+      , bi::link_mode<bi::normal_link>
+      , bi::optimize_size<true>
+      >::type   hook_type;
 
    typedef T value_type;
 
@@ -103,7 +109,7 @@ struct rbtree_node
    #else
    template<class Convertible>
    rbtree_node(Convertible &&conv)
-      : m_data(forward<Convertible>(conv)){}
+      : m_data(detail::forward_impl<Convertible>(conv)){}
    #endif
 
    rbtree_node &operator=(const rbtree_node &other)
@@ -124,7 +130,7 @@ struct rbtree_node
    {  m_data = v; }
 
    public:
-   #ifndef BOOST_INTERPROCESS_RVALUE_REFERENCE
+   #if !defined(BOOST_INTERPROCESS_RVALUE_REFERENCE)
 
    template<class Convertible>
    static void construct(node_type *ptr, const Convertible &value)
@@ -143,11 +149,11 @@ struct rbtree_node
       new((void*)ptr) hack_node_t(value);  
    }
 
-   #else
+   #elif !defined(BOOST_INTERPROCESS_RVALUE_PAIR)
 
    template<class Convertible>
    static void construct(node_type *ptr, Convertible &&value)
-   {  new(ptr) node_type(forward<Convertible>(value));  }
+   {  new(ptr) node_type(detail::forward_impl<Convertible>(value));  }
 
    template<class Convertible1, class Convertible2>
    static void construct(node_type *ptr, 
@@ -161,19 +167,18 @@ struct rbtree_node
 
       new((void*)ptr) hack_node_t(value);  
    }
-
    #endif
 };
 
 }//namespace detail {
-
+#if !defined(BOOST_INTERPROCESS_RVALUE_REFERENCE) || !defined(BOOST_INTERPROCESS_RVALUE_PAIR)
 template<class T, class VoidPointer>
 struct has_own_construct_from_it
    < boost::interprocess::detail::rbtree_node<T, VoidPointer> >
 {
    static const bool value = true;
 };
-
+#endif
 namespace detail {
 
 template<class A, class ValueCompare>
@@ -572,7 +577,7 @@ class rbtree
    iterator insert_unique_commit
       (MovableConvertible && mv, insert_commit_data &data)
    {
-      NodePtr tmp = AllocHolder::create_node(forward<MovableConvertible>(mv));
+      NodePtr tmp = AllocHolder::create_node(detail::forward_impl<MovableConvertible>(mv));
       iiterator it(this->icont().insert_unique_commit(*tmp, data));
       return iterator(it);
    }
@@ -612,7 +617,7 @@ class rbtree
       if(!ret.second)
          return ret;
       return std::pair<iterator,bool>
-         (this->insert_unique_commit(forward<MovableConvertible>(mv), data), true);
+         (this->insert_unique_commit(detail::forward_impl<MovableConvertible>(mv), data), true);
    }
    #endif
 
@@ -648,7 +653,7 @@ class rbtree
          this->insert_unique_check(hint, KeyOfValue()(mv), data);
       if(!ret.second)
          return ret.first;
-      return this->insert_unique_commit(forward<MovableConvertible>(mv), data);
+      return this->insert_unique_commit(detail::forward_impl<MovableConvertible>(mv), data);
    }
    #endif
 
@@ -671,7 +676,7 @@ class rbtree
    iterator insert_equal(const value_type& v)
    {
       NodePtr p(AllocHolder::create_node(v));
-      return iterator(this->icont().insert_equal_upper_bound(*p));
+      return iterator(this->icont().insert_equal(this->icont().end(), *p));
    }
 
    #ifndef BOOST_INTERPROCESS_RVALUE_REFERENCE
@@ -679,14 +684,14 @@ class rbtree
    iterator insert_equal(const detail::moved_object<MovableConvertible> &mv)
    {
       NodePtr p(AllocHolder::create_node(mv));
-      return iterator(this->icont().insert_equal_upper_bound(*p));
+      return iterator(this->icont().insert_equal(this->icont().end(), *p));
    }
    #else
    template<class MovableConvertible>
    iterator insert_equal(MovableConvertible &&mv)
    {
-      NodePtr p(AllocHolder::create_node(forward<MovableConvertible>(mv)));
-      return iterator(this->icont().insert_equal_upper_bound(*p));
+      NodePtr p(AllocHolder::create_node(detail::forward_impl<MovableConvertible>(mv)));
+      return iterator(this->icont().insert_equal(this->icont().end(), *p));
    }
    #endif
 
@@ -707,7 +712,7 @@ class rbtree
    template<class MovableConvertible>
    iterator insert_equal(const_iterator hint, MovableConvertible &&mv)
    {
-      NodePtr p(AllocHolder::create_node(move(mv)));
+      NodePtr p(AllocHolder::create_node(detail::move_impl(mv)));
       return iterator(this->icont().insert_equal(hint.get(), *p));
    }
    #endif
@@ -715,30 +720,24 @@ class rbtree
    template <class InputIterator>
    void insert_equal(InputIterator first, InputIterator last)
    {
-      if(this->empty()){
-         //Insert with end hint, to achieve linear
-         //complexity if [first, last) is ordered
-         iterator end(this->end());
-         for( ; first != last; ++first)
-            this->insert_equal(end, *first);
-      }
-      else{
-         for( ; first != last; ++first)
-            this->insert_equal(*first);
-      }
+      //Insert with end hint, to achieve linear
+      //complexity if [first, last) is ordered
+      iterator end(this->end());
+      for( ; first != last; ++first)
+         this->insert_equal(end, *first);
    }
 
    iterator erase(const_iterator position)
    {  return iterator(this->icont().erase_and_dispose(position.get(), Destroyer(this->node_alloc()))); }
 
    size_type erase(const key_type& k)
-   {  return this->icont().erase_and_dispose(k, KeyNodeCompare(value_comp()), Destroyer(this->node_alloc())); }
+   {  return AllocHolder::erase_key(k, KeyNodeCompare(value_comp()), alloc_version()); }
 
    iterator erase(const_iterator first, const_iterator last)
-   {  return iterator(this->icont().erase_and_dispose(first.get(), last.get(), Destroyer(this->node_alloc()))); }
+   {  return iterator(AllocHolder::erase_range(first.get(), last.get(), alloc_version())); }
 
    void clear() 
-   {  this->icont().clear_and_dispose(Destroyer(this->node_alloc())); }
+   {  AllocHolder::clear(alloc_version());  }
 
    // set operations:
    iterator find(const key_type& k)
@@ -824,7 +823,7 @@ class rbtree
       {}
 
       void operator()(Node &n)
-      {  this->icont_.insert_equal_upper_bound(n); }
+      {  this->icont_.insert_equal(this->icont_.end(), n); }
    };
 
 

@@ -7,6 +7,7 @@
 // See http://www.boost.org/libs/interprocess for documentation.
 //
 //////////////////////////////////////////////////////////////////////////////
+#include <boost/interprocess/detail/config_begin.hpp>
 //[doc_managed_multiple_allocation
 #include <boost/interprocess/managed_shared_memory.hpp>
 #include <cassert>//assert
@@ -40,10 +41,10 @@ int main()
 
       //Initialize our data
       for( multiallocation_iterator it = beg_it, end_it; it != end_it; ){
-         allocated_buffers.push_back(*it);
+         allocated_buffers.push_back(&*it);
          //The iterator must be incremented before overwriting memory
          //because otherwise, the iterator is invalidated.
-         std::memset(*it++, 0, 100);
+         std::memset(&*it++, 0, 100);
       }
 
       //Now deallocate
@@ -64,7 +65,7 @@ int main()
       for(multiallocation_iterator it = beg_it; it;){
          //The iterator must be incremented before overwriting memory
          //because otherwise, the iterator is invalidated.
-         managed_shm.deallocate(*it++);
+         managed_shm.deallocate(&*it++);
       }
    }
    catch(...){
@@ -75,3 +76,4 @@ int main()
    return 0;
 }
 //]
+#include <boost/interprocess/detail/config_end.hpp>

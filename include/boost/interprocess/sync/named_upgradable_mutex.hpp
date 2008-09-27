@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-// (C) Copyright Ion Gaztanaga 2005-2007. Distributed under the Boost
+// (C) Copyright Ion Gaztanaga 2005-2008. Distributed under the Boost
 // Software License, Version 1.0. (See accompanying file
 // LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
@@ -30,6 +30,10 @@
 
 namespace boost {
 namespace interprocess {
+
+/// @cond
+namespace detail{ class interprocess_tester; }
+/// @endcond
 
 class named_condition;
 
@@ -218,13 +222,18 @@ class named_upgradable_mutex
 
    /// @cond
    private:
+   friend class detail::interprocess_tester;
+   void dont_close_on_destruction();
+
    interprocess_upgradable_mutex *mutex() const
-   {  return static_cast<interprocess_upgradable_mutex*>(m_shmem.get_address()); }
+   {  return static_cast<interprocess_upgradable_mutex*>(m_shmem.get_user_address()); }
 
    detail::managed_open_or_create_impl<shared_memory_object> m_shmem;
    typedef detail::named_creation_functor<interprocess_upgradable_mutex> construct_func_t;
    /// @endcond
 };
+
+/// @cond
 
 inline named_upgradable_mutex::~named_upgradable_mutex()
 {}
@@ -261,6 +270,9 @@ inline named_upgradable_mutex::named_upgradable_mutex
                ,0
                ,construct_func_t(detail::DoOpen))
 {}
+
+inline void named_upgradable_mutex::dont_close_on_destruction()
+{  detail::interprocess_tester::dont_close_on_destruction(m_shmem);  }
 
 inline void named_upgradable_mutex::lock()
 {  this->mutex()->lock();  }
@@ -329,8 +341,9 @@ inline bool named_upgradable_mutex::try_unlock_sharable_and_lock_upgradable()
 inline bool named_upgradable_mutex::remove(const char *name)
 {  return shared_memory_object::remove(name); }
 
-}  //namespace interprocess {
+/// @endcond
 
+}  //namespace interprocess {
 }  //namespace boost {
 
 #include <boost/interprocess/detail/config_end.hpp>

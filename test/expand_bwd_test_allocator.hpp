@@ -28,7 +28,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <stdexcept>
-#include <assert.h>
+#include <cassert>
 
 //!\file
 //!Describes an allocator to test expand capabilities
@@ -85,26 +85,26 @@ class expand_bwd_test_allocator
    expand_bwd_test_allocator(const expand_bwd_test_allocator<T2> &other)
       : mp_buffer(other.mp_buffer), m_size(other.m_size)
       , m_offset(other.m_offset),  m_allocations(0){ }
-/*
+
    pointer address(reference value)
    {  return pointer(addressof(value));  }
 
    const_pointer address(const_reference value) const
    {  return const_pointer(addressof(value));  }
-*/
+
    pointer allocate(size_type , cvoid_ptr hint = 0)
    {  (void)hint; return 0; }
 
    void deallocate(const pointer &, size_type)
    {}
-/*
+
    template<class Convertible>
    void construct(pointer ptr, const Convertible &value)
    {  new((void*)ptr) value_type(value);  }
 
    void destroy(pointer ptr)
    {  (*ptr).~value_type();  }
-*/
+
    size_type max_size() const
    {  return m_size;   }
 
@@ -147,7 +147,6 @@ class expand_bwd_test_allocator
          assert(0);
          throw std::bad_alloc();
       }
-      return std::pair<pointer, bool>(0, true);
    }
 
    //!Returns maximum the number of objects the previously allocated memory

@@ -7,6 +7,7 @@
 // See http://www.boost.org/libs/interprocess for documentation.
 //
 //////////////////////////////////////////////////////////////////////////////
+#include <boost/interprocess/detail/config_begin.hpp>
 //[doc_shared_memory2
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/mapped_region.hpp>
@@ -35,9 +36,12 @@ int main ()
    }
    catch(interprocess_exception &ex){
       std::cout << "Unexpected exception: " << ex.what() << std::endl;
+      shared_memory_object::remove("shared_memory");
       return 1;
    }
-
+   shared_memory_object::remove("shared_memory");
    return 0;
 }
 //]
+
+#include <boost/interprocess/detail/config_end.hpp>

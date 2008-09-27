@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-// (C) Copyright Ion Gaztanaga 2005-2007. Distributed under the Boost
+// (C) Copyright Ion Gaztanaga 2005-2008. Distributed under the Boost
 // Software License, Version 1.0. (See accompanying file
 // LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
@@ -13,7 +13,7 @@
 
 #include <boost/interprocess/detail/config_begin.hpp>
 #include <boost/interprocess/detail/workaround.hpp>
-#include <stddef.h>
+#include <cstddef>
 
 #if (defined _MSC_VER) && (_MSC_VER >= 1200)
 #  pragma once
@@ -21,8 +21,7 @@
 #endif
 
 #if (defined BOOST_WINDOWS) && !(defined BOOST_DISABLE_WIN32)
-#  include <stddef.h>
-#  include <stdarg.h>
+#  include <cstdarg>
 #  include <boost/detail/interlocked.hpp>
 #else
 # error "This file can only be included in Windows OS"
@@ -66,6 +65,7 @@ static const unsigned long file_map_all_access  = section_all_access;
 
 static const unsigned long file_share_read      = 0x00000001;
 static const unsigned long file_share_write     = 0x00000002;
+static const unsigned long file_share_delete    = 0x00000004;
 
 static const unsigned long generic_read         = 0x80000000L;
 static const unsigned long generic_write        = 0x40000000L;
@@ -224,17 +224,17 @@ extern "C" __declspec(dllimport) void * __stdcall CreateSemaphoreA(interprocess_
 extern "C" __declspec(dllimport) int __stdcall ReleaseSemaphore(void *, long, long *);
 extern "C" __declspec(dllimport) void * __stdcall OpenSemaphoreA(unsigned long, int, const char *);
 extern "C" __declspec(dllimport) void * __stdcall CreateFileMappingA (void *, interprocess_security_attributes*, unsigned long, unsigned long, unsigned long, const char *);
-extern "C" __declspec(dllimport) void * __stdcall MapViewOfFileEx (void *, unsigned long, unsigned long, unsigned long, size_t, void*);
+extern "C" __declspec(dllimport) void * __stdcall MapViewOfFileEx (void *, unsigned long, unsigned long, unsigned long, std::size_t, void*);
 extern "C" __declspec(dllimport) void * __stdcall OpenFileMappingA (unsigned long, int, const char *);
-extern "C" __declspec(dllimport) void * __stdcall CreateFileA (const char *, unsigned long, unsigned long, struct _SECURITY_ATTRIBUTES*, unsigned long, unsigned long, void *);
+extern "C" __declspec(dllimport) void * __stdcall CreateFileA (const char *, unsigned long, unsigned long, struct interprocess_security_attributes*, unsigned long, unsigned long, void *);
 extern "C" __declspec(dllimport) int __stdcall    DeleteFileA (const char *);
 extern "C" __declspec(dllimport) void __stdcall GetSystemInfo (struct system_info *);
-extern "C" __declspec(dllimport) int __stdcall FlushViewOfFile (void *, size_t);
+extern "C" __declspec(dllimport) int __stdcall FlushViewOfFile (void *, std::size_t);
 extern "C" __declspec(dllimport) int __stdcall GetFileSizeEx (void *, __int64 *size);
 extern "C" __declspec(dllimport) unsigned long __stdcall FormatMessageA
    (unsigned long dwFlags,       const void *lpSource,   unsigned long dwMessageId, 
    unsigned long dwLanguageId,   char *lpBuffer,         unsigned long nSize, 
-   va_list *Arguments);
+   std::va_list *Arguments);
 extern "C" __declspec(dllimport) void *__stdcall LocalFree (void *);
 extern "C" __declspec(dllimport) int __stdcall CreateDirectoryA(const char *, interprocess_security_attributes*);
 extern "C" __declspec(dllimport) int __stdcall GetTempPathA(unsigned long length, char *buffer);
@@ -249,14 +249,6 @@ extern "C" __declspec(dllimport) int __stdcall UnlockFileEx(void *hnd, unsigned 
 extern "C" __declspec(dllimport) int __stdcall WriteFile(void *hnd, const void *buffer, unsigned long bytes_to_write, unsigned long *bytes_written, interprocess_overlapped* overlapped);
 extern "C" __declspec(dllimport) int __stdcall InitializeSecurityDescriptor(interprocess_security_descriptor *pSecurityDescriptor, unsigned long dwRevision);
 extern "C" __declspec(dllimport) int __stdcall SetSecurityDescriptorDacl(interprocess_security_descriptor *pSecurityDescriptor, int bDaclPresent, interprocess_acl *pDacl, int bDaclDefaulted);
-
-/*
-extern "C" __declspec(dllimport) long __stdcall InterlockedIncrement( long volatile * );
-extern "C" __declspec(dllimport) long __stdcall InterlockedDecrement( long volatile * );
-extern "C" __declspec(dllimport) long __stdcall InterlockedCompareExchange( long volatile *, long, long );
-extern "C" __declspec(dllimport) long __stdcall InterlockedExchangeAdd(long volatile *, long);
-extern "C" __declspec(dllimport) long __stdcall InterlockedExchange(long volatile *, long);
-*/
 
 }  //namespace winapi {
 }  //namespace interprocess  {
@@ -273,7 +265,7 @@ namespace winapi {
 static inline unsigned long format_message
    (unsigned long dwFlags, const void *lpSource,
     unsigned long dwMessageId, unsigned long dwLanguageId,
-    char *lpBuffer, unsigned long nSize, va_list *Arguments)
+    char *lpBuffer, unsigned long nSize, std::va_list *Arguments)
 {
    return FormatMessageA
       (dwFlags, lpSource, dwMessageId, dwLanguageId, lpBuffer, nSize, Arguments);
@@ -360,11 +352,11 @@ static inline void * create_file_mapping (void * handle, unsigned long access, u
 static inline void * open_file_mapping (unsigned long access, const char *name)
 {  return OpenFileMappingA (access, 0, name);   }
 
-static inline void *map_view_of_file_ex(void *handle, unsigned long file_access, unsigned long highoffset, unsigned long lowoffset, size_t numbytes, void *base_addr)
+static inline void *map_view_of_file_ex(void *handle, unsigned long file_access, unsigned long highoffset, unsigned long lowoffset, std::size_t numbytes, void *base_addr)
 {  return MapViewOfFileEx(handle, file_access, highoffset, lowoffset, numbytes, base_addr);  }
 
 static inline void *create_file(const char *name, unsigned long access, unsigned long creation_flags, unsigned long attributes = 0)
-{  return CreateFileA(name, access, file_share_read | file_share_write, 0, creation_flags, attributes, 0);  }
+{  return CreateFileA(name, access, file_share_read | file_share_write | file_share_delete, 0, creation_flags, attributes, 0);  }
 
 static inline bool delete_file(const char *name)
 {  return 0 != DeleteFileA(name);  }
@@ -372,7 +364,7 @@ static inline bool delete_file(const char *name)
 static inline void get_system_info(system_info *info)
 {  GetSystemInfo(info); }
 
-static inline int flush_view_of_file(void *base_addr, size_t numbytes)
+static inline int flush_view_of_file(void *base_addr, std::size_t numbytes)
 {  return FlushViewOfFile(base_addr, numbytes); }
 
 static inline bool get_file_size(void *handle, __int64 &size)

@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-// (C) Copyright Ion Gaztanaga 2005-2007. Distributed under the Boost
+// (C) Copyright Ion Gaztanaga 2005-2008. Distributed under the Boost
 // Software License, Version 1.0. (See accompanying file
 // LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
@@ -74,6 +74,9 @@ struct node_alloc_holder
    typedef detail::integral_constant<unsigned,
       boost::interprocess::detail::
          version<NodeAlloc>::value>                   alloc_version;
+   typedef typename ICont::iterator                   icont_iterator;
+   typedef typename ICont::const_iterator             icont_citerator;
+   typedef allocator_destroyer<NodeAlloc>             Destroyer;
 
    node_alloc_holder(const ValAlloc &a) 
       : members_(a)
@@ -85,11 +88,11 @@ struct node_alloc_holder
 
    #ifndef BOOST_INTERPROCESS_RVALUE_REFERENCE
    node_alloc_holder(const detail::moved_object<node_alloc_holder> &other)
-      : members_(move(other.get().node_alloc()))
+      : members_(detail::move_impl(other.get().node_alloc()))
    {  this->swap(other.get());  }
    #else
    node_alloc_holder(node_alloc_holder &&other)
-      : members_(move(other.node_alloc()))
+      : members_(detail::move_impl(other.node_alloc()))
    {  this->swap(other);  }
    #endif
 
@@ -142,15 +145,15 @@ struct node_alloc_holder
    #ifndef BOOST_INTERPROCESS_RVALUE_REFERENCE
    template<class Convertible>
    static void construct(const NodePtr &ptr, const Convertible &value)
-   {  new(detail::get_pointer(ptr)) Node(value);  }
+   {  new((void*)detail::get_pointer(ptr)) Node(value);  }
    #else
    template<class Convertible>
    static void construct(const NodePtr &ptr, Convertible &&value)
-   {  new(detail::get_pointer(ptr)) Node(forward<Convertible>(value));  }
+   {  new((void*)detail::get_pointer(ptr)) Node(detail::forward_impl<Convertible>(value));  }
    #endif
 
    static void construct(const NodePtr &ptr)
-   {  new(detail::get_pointer(ptr)) Node();  }
+   {  new((void*)detail::get_pointer(ptr)) Node();  }
 
    #ifndef BOOST_INTERPROCESS_RVALUE_REFERENCE
    template<class Convertible1, class Convertible2>
@@ -166,14 +169,14 @@ struct node_alloc_holder
       new(static_cast<hook_type*>(nodeptr))hook_type();
       //Now construct pair members_holder
       value_type *valueptr = &nodeptr->m_data;
-      new((void*)&valueptr->first) first_type(move(value.get().first));
+      new((void*)&valueptr->first) first_type(detail::move_impl(value.get().first));
       BOOST_TRY{
-         new((void*)&valueptr->second) second_type(move(value.get().second));
+         new((void*)&valueptr->second) second_type(detail::move_impl(value.get().second));
       }
       BOOST_CATCH(...){
          valueptr->first.~first_type();
          static_cast<hook_type*>(nodeptr)->~hook_type();
-         throw;
+         BOOST_RETHROW
       }
       BOOST_CATCH_END
    }
@@ -191,14 +194,14 @@ struct node_alloc_holder
       new(static_cast<hook_type*>(nodeptr))hook_type();
       //Now construct pair members_holder
       value_type *valueptr = &nodeptr->m_data;
-      new((void*)&valueptr->first) first_type(move(value.first));
+      new((void*)&valueptr->first) first_type(detail::move_impl(value.first));
       BOOST_TRY{
-         new((void*)&valueptr->second) second_type(move(value.second));
+         new((void*)&valueptr->second) second_type(detail::move_impl(value.second));
       }
       BOOST_CATCH(...){
          valueptr->first.~first_type();
          static_cast<hook_type*>(nodeptr)->~hook_type();
-         throw;
+         BOOST_RETHROW
       }
       BOOST_CATCH_END
    }
@@ -223,7 +226,7 @@ struct node_alloc_holder
    {
       NodePtr p = this->allocate_one();
       Deallocator node_deallocator(p, this->node_alloc());
-      self_t::construct(p, forward<Convertible>(x));
+      self_t::construct(p, detail::forward_impl<Convertible>(x));
       node_deallocator.release();
       return (p);
    }
@@ -272,11 +275,11 @@ struct node_alloc_holder
    {
       typedef typename NodeAlloc::multiallocation_iterator multiallocation_iterator;
 
-      //Try to allocate memory in a single chunk
+      //Try to allocate memory in a single block
       multiallocation_iterator itbeg =
          this->node_alloc().allocate_individual(n), itend, itold;
       int constructed = 0;
-      Node *p;
+      Node *p = 0;
       BOOST_TRY{
          for(difference_type i = 0; i < n; ++i, ++beg, --constructed){
             p = &*itbeg;
@@ -292,16 +295,40 @@ struct node_alloc_holder
          if(constructed){
             this->destroy(p);
          }
-         this->deallocate_one(p);
-         multiallocation_iterator itend;
-         while(itbeg != itend){
-            Node *n = &*itbeg;
-            ++itbeg;
-            this->deallocate_one(n);
-         }
+         this->node_alloc().deallocate_many(itbeg);
+         BOOST_RETHROW
       }
       BOOST_CATCH_END
       return beg;
+   }
+
+   void clear(allocator_v1)
+   {  this->icont().clear_and_dispose(Destroyer(this->node_alloc()));   }
+
+   void clear(allocator_v2)
+   {
+      allocator_multialloc_chain_node_deallocator<NodeAlloc> chain_holder(this->node_alloc());
+      this->icont().clear_and_dispose(chain_holder.get_chain_builder());
+   }
+
+   icont_iterator erase_range(icont_iterator first, icont_iterator last, allocator_v1)
+   {  return this->icont().erase_and_dispose(first, last, Destroyer(this->node_alloc())); }
+
+   icont_iterator erase_range(icont_iterator first, icont_iterator last, allocator_v2)
+   {
+      allocator_multialloc_chain_node_deallocator<NodeAlloc> chain_holder(this->node_alloc());
+      return this->icont().erase_and_dispose(first, last, chain_holder.get_chain_builder());
+   }
+
+   template<class Key, class Comparator>
+   size_type erase_key(const Key& k, const Comparator &comp, allocator_v1)
+   {  return this->icont().erase_and_dispose(k, comp, Destroyer(this->node_alloc())); }
+
+   template<class Key, class Comparator>
+   size_type erase_key(const Key& k, const Comparator &comp, allocator_v2)
+   {
+      allocator_multialloc_chain_node_deallocator<NodeAlloc> chain_holder(this->node_alloc());
+      return this->icont().erase_and_dispose(k, comp, chain_holder.get_chain_builder());
    }
 
    protected:
@@ -359,10 +386,10 @@ struct node_alloc_holder
    {  return this->members_.m_icont;   }
 
    NodeAlloc &node_alloc()
-   {  return this->members_;   }
+   {  return static_cast<NodeAlloc &>(this->members_);   }
 
    const NodeAlloc &node_alloc() const
-   {  return this->members_;   }
+   {  return static_cast<const NodeAlloc &>(this->members_);   }
 };
 
 }  //namespace detail {

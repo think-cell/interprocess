@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-// (C) Copyright Ion Gaztanaga 2005-2007. Distributed under the Boost
+// (C) Copyright Ion Gaztanaga 2005-2008. Distributed under the Boost
 // Software License, Version 1.0. (See accompanying file
 // LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
@@ -22,15 +22,13 @@
 #include <boost/interprocess/creation_tags.hpp>
 #include <boost/interprocess/detail/file_wrapper.hpp>
 #include <boost/interprocess/detail/move.hpp>
-
-//!\file
-//!Describes a named shared memory object allocation user class. 
+#include <boost/interprocess/file_mapping.hpp>
 
 namespace boost {
 namespace interprocess {
 
-//!A basic shared memory named object creation class. Initializes the 
-//!shared memory segment. Inherits all basic functionality from 
+//!A basic mapped file named object creation class. Initializes the 
+//!mapped file. Inherits all basic functionality from 
 //!basic_managed_memory_impl<CharType, AllocationAlgorithm, IndexType>
 template
       <
@@ -40,22 +38,36 @@ template
       >
 class basic_managed_mapped_file 
    : public detail::basic_managed_memory_impl
-      <CharType, AllocationAlgorithm, IndexType>
+      <CharType, AllocationAlgorithm, IndexType
+      ,detail::managed_open_or_create_impl<detail::file_wrapper>::ManagedOpenOrCreateUserOffset>
 {
    /// @cond
+   public:
+   typedef detail::basic_managed_memory_impl 
+      <CharType, AllocationAlgorithm, IndexType,
+      detail::managed_open_or_create_impl<detail::file_wrapper>::ManagedOpenOrCreateUserOffset>   base_t;
+   typedef detail::file_wrapper device_type;
+
    private:
 
-   typedef detail::basic_managed_memory_impl 
-      <CharType, AllocationAlgorithm, IndexType>   base_t;
    typedef detail::create_open_func<base_t>        create_open_func_t;   
+   typedef detail::managed_open_or_create_impl<detail::file_wrapper> managed_open_or_create_type;
 
    basic_managed_mapped_file *get_this_pointer()
    {  return this;   }
+
+   private:
+   typedef typename base_t::char_ptr_holder_t   char_ptr_holder_t;
    /// @endcond
 
    public: //functions
 
-   //!Creates shared memory and creates and places the segment manager. 
+   //!Creates mapped file and creates and places the segment manager. 
+   //!This can throw.
+   basic_managed_mapped_file()
+   {}
+
+   //!Creates mapped file and creates and places the segment manager. 
    //!This can throw.
    basic_managed_mapped_file(create_only_t create_only, const char *name,
                              std::size_t size, const void *addr = 0)
@@ -63,7 +75,7 @@ class basic_managed_mapped_file
                 create_open_func_t(get_this_pointer(), detail::DoCreate))
    {}
 
-   //!Creates shared memory and creates and places the segment manager if
+   //!Creates mapped file and creates and places the segment manager if
    //!segment was not created. If segment was created it connects to the
    //!segment.
    //!This can throw.
@@ -75,11 +87,31 @@ class basic_managed_mapped_file
                 detail::DoOpenOrCreate))
    {}
 
-   //!Connects to a created shared memory and it's the segment manager.
-   //!Never throws.
+   //!Connects to a created mapped file and its segment manager.
+   //!This can throw.
    basic_managed_mapped_file (open_only_t open_only, const char* name, 
                               const void *addr = 0)
       : m_mfile(open_only, name, read_write, addr, 
+                create_open_func_t(get_this_pointer(), 
+                detail::DoOpen))
+   {}
+
+   //!Connects to a created mapped file and its segment manager
+   //!in copy_on_write mode.
+   //!This can throw.
+   basic_managed_mapped_file (open_copy_on_write_t, const char* name, 
+                              const void *addr = 0)
+      : m_mfile(open_only, name, copy_on_write, addr, 
+                create_open_func_t(get_this_pointer(), 
+                detail::DoOpen))
+   {}
+
+   //!Connects to a created mapped file and its segment manager
+   //!in read-only mode.
+   //!This can throw.
+   basic_managed_mapped_file (open_read_only_t, const char* name, 
+                              const void *addr = 0)
+      : m_mfile(open_only, name, read_only, addr, 
                 create_open_func_t(get_this_pointer(), 
                 detail::DoOpen))
    {}
@@ -88,7 +120,7 @@ class basic_managed_mapped_file
    //!Does not throw
    #ifndef BOOST_INTERPROCESS_RVALUE_REFERENCE
    basic_managed_mapped_file
-      (detail::moved_object<basic_managed_mapped_file> &moved)
+      (detail::moved_object<basic_managed_mapped_file> moved)
    {  this->swap(moved.get());   }
    #else
    basic_managed_mapped_file(basic_managed_mapped_file &&moved)
@@ -99,7 +131,7 @@ class basic_managed_mapped_file
    //!Does not throw
    #ifndef BOOST_INTERPROCESS_RVALUE_REFERENCE
    basic_managed_mapped_file &operator=
-      (detail::moved_object<basic_managed_mapped_file> &moved)
+      (detail::moved_object<basic_managed_mapped_file> moved)
    {  this->swap(moved.get());   return *this;  }
    #else
    basic_managed_mapped_file &operator=(basic_managed_mapped_file &&moved)
@@ -130,52 +162,64 @@ class basic_managed_mapped_file
 
    //!Tries to resize mapped file so that we have room for 
    //!more objects. 
-   //!WARNING: The memory mapping can change. To be able to use
-   //!this function, all pointers constructed in this buffer
-   //!must be offset pointers. Otherwise, the result is undefined.
-   //!Returns true if the growth has been successful, so you will
-   //!have some extra bytes to allocate new objects. If returns 
-   //!false, the heap allocation has failed.
-/*
-   bool grow(std::size_t extra_bytes)
-   {  
-      //If memory is reallocated, data will
-      //be automatically copied
-      std::size_t old_size = m_mfile.get_size();
-      std::size_t new_size = old_size + extra_bytes;
-      m_mfile.close();
-      //Increase file size
-      {
-         std::ofstream file(m_filename.c_str(), 
-                            std::ios::binary |std::ios::in | std::ios::out);
-         if(!file){
-            return false;
-         }
-         if(!file.seekp(static_cast<std::streamoff>(new_size - 1))){
-            return false;
-         }
-         if(!file.write("", 1)){
-            return false;
-         }
-      }
-
-      if(!m_mfile.open(m_filename.c_str(), 0, new_size, 
-                       (file_mapping::mode_t)read_write)){
-         return false;
-      }
-
-      //Grow always works
-      base_t::close_impl();
-      base_t::open_impl(m_mfile.get_address(), new_size);
-      base_t::grow(extra_bytes);
-      return true;
+   //!
+   //!This function is not synchronized so no other thread or process should
+   //!be reading or writing the file
+   static bool grow(const char *filename, std::size_t extra_bytes)
+   {
+      return base_t::template grow
+         <basic_managed_mapped_file>(filename, extra_bytes);
    }
-*/
+
+   //!Tries to resize mapped file to minimized the size of the file.
+   //!
+   //!This function is not synchronized so no other thread or process should
+   //!be reading or writing the file
+   static bool shrink_to_fit(const char *filename)
+   {
+      return base_t::template shrink_to_fit
+         <basic_managed_mapped_file>(filename);
+   }
+
    /// @cond
+
+   //!Tries to find a previous named allocation address. Returns a memory
+   //!buffer and the object count. If not found returned pointer is 0.
+   //!Never throws.
+   template <class T>
+   std::pair<T*, std::size_t> find  (char_ptr_holder_t name)
+   {
+      if(m_mfile.get_mapped_region().get_mode() == read_only){
+         return base_t::template find_no_lock<T>(name);
+      }
+      else{
+         return base_t::template find<T>(name);
+      }
+   }
+
    private:
-   detail::managed_open_or_create_impl<detail::file_wrapper> m_mfile;
+   managed_open_or_create_type m_mfile;
    /// @endcond
 };
+
+///@cond
+
+//!Trait class to detect if a type is
+//!movable
+template
+      <
+         class CharType, 
+         class AllocationAlgorithm, 
+         template<class IndexConfig> class IndexType
+      >
+struct is_movable<basic_managed_mapped_file
+   <CharType,  AllocationAlgorithm, IndexType>
+>
+{
+   static const bool value = true;
+};
+
+///@endcond
 
 }  //namespace interprocess {
 

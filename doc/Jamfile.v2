@@ -1,6 +1,6 @@
 #  Boost.Interprocess library documentation Jamfile  ---------------------------------
 #
-#  Copyright Ion Gaztañaga 2005-2007. Use, modification and
+#  Copyright Ion Gaztanaga 2005-2007. Use, modification and
 #  distribution is subject to the Boost Software License, Version
 #  1.0. (See accompanying file LICENSE_1_0.txt or copy at
 #  http://www.boost.org/LICENSE_1_0.txt)
@@ -26,8 +26,8 @@ doxygen autodoc
         <doxygen:param>HIDE_UNDOC_MEMBERS=YES
         <doxygen:param>EXTRACT_PRIVATE=NO
         <doxygen:param>EXPAND_ONLY_PREDEF=YES
-        <xsl:param>"boost.doxygen.reftitle=\"Boost.Interprocess Reference\""
-        <xsl:param>"boost.doxygen.refid=\"reference\""
+        <doxygen:param>PREDEFINED=BOOST_INTERPROCESS_DOXYGEN_INVOKED
+        <xsl:param>"boost.doxygen.reftitle=Boost.Interprocess Reference"
    ;
 
 xml interprocess : interprocess.qbk ;

@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-// (C) Copyright Ion Gaztanaga 2005-2007. Distributed under the Boost
+// (C) Copyright Ion Gaztanaga 2005-2008. Distributed under the Boost
 // Software License, Version 1.0. (See accompanying file
 // LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
@@ -93,7 +93,7 @@ struct list_node
    #else
    template<class Convertible>
    list_node(Convertible &&conv)
-      : m_data(forward<Convertible>(conv))
+      : m_data(detail::forward_impl<Convertible>(conv))
    {}
    #endif
 
@@ -211,11 +211,12 @@ class list
    public:
    //! Const iterator used to iterate through a list. 
    class const_iterator
+      /// @cond
       : public std::iterator<std::bidirectional_iterator_tag, 
                                  value_type,         list_difference_type, 
                                  list_const_pointer, list_const_reference>
    {
-      /// @cond
+
       protected:
       typename Icont::iterator m_it;
       explicit const_iterator(typename Icont::iterator it)  : m_it(it){}
@@ -225,7 +226,6 @@ class list
       private:
       typename Icont::iterator get()
       {  return this->m_it;   }
-      /// @endcond
 
       public:
       friend class list<T, A>;
@@ -262,13 +262,16 @@ class list
 
       bool operator!=   (const const_iterator& r)  const
       {  return m_it != r.m_it;  }
-   };
+   }
+   /// @endcond
+   ;
 
    //! Iterator used to iterate through a list
    class iterator
+   /// @cond
       : public const_iterator
    {
-      /// @cond
+
       private:
       explicit iterator(typename Icont::iterator it)
          :  const_iterator(it)
@@ -276,7 +279,6 @@ class list
    
       typename Icont::iterator get()
       {  return this->m_it;   }
-      /// @endcond
 
       public:
       friend class list<T, A>;
@@ -302,7 +304,9 @@ class list
 
       iterator operator--(int)
          {  iterator tmp = *this; --*this; return tmp; }
-   };
+   }
+   /// @endcond
+   ;
 
    //! Iterator used to iterate backwards through a list. 
    typedef std::reverse_iterator<iterator>        reverse_iterator;
@@ -319,7 +323,7 @@ class list
    {}
 
 //   list(size_type n)
-//      : AllocHolder(move(allocator_type()))
+//      : AllocHolder(detail::move_impl(allocator_type()))
 //   {  this->resize(n);  }
 
    //! <b>Effects</b>: Constructs a list that will use a copy of allocator a
@@ -351,11 +355,11 @@ class list
    //! <b>Complexity</b>: Constant.
    #ifndef BOOST_INTERPROCESS_RVALUE_REFERENCE
    list(const detail::moved_object<list> &x)
-      : AllocHolder(move((AllocHolder&)x.get()))
+      : AllocHolder(detail::move_impl((AllocHolder&)x.get()))
    {}
    #else
    list(list &&x)
-      : AllocHolder(move((AllocHolder&)x))
+      : AllocHolder(detail::move_impl((AllocHolder&)x))
    {}
    #endif
 
@@ -400,7 +404,7 @@ class list
    //!
    //! <b>Complexity</b>: Linear to the number of elements in the list.
    void clear()
-   {  this->icont().clear_and_dispose(Destroyer(this->node_alloc()));  }
+   {  AllocHolder::clear(alloc_version());  }
 
    //! <b>Effects</b>: Returns an iterator to the first element contained in the list.
    //! 
@@ -514,7 +518,7 @@ class list
    {  this->insert(this->begin(), x);  }
    #else
    void push_front(T &&x)   
-   {  this->insert(this->begin(), move(x));  }
+   {  this->insert(this->begin(), detail::move_impl(x));  }
    #endif
 
    //! <b>Effects</b>: Removes the last element from the list.
@@ -535,7 +539,7 @@ class list
    {  this->insert(this->end(), x);    }
    #else
    void push_back (T &&x)   
-   {  this->insert(this->end(), move(x));    }
+   {  this->insert(this->end(), detail::move_impl(x));    }
    #endif
 
    //! <b>Effects</b>: Removes the first element from the list.
@@ -606,7 +610,7 @@ class list
    //! <b>Complexity</b>: Linear to the difference between size() and new_size.
    void resize(size_type new_size, const T& x)
    {
-      iterator i = this->begin(), iend = this->end();
+      iterator iend = this->end();
       size_type len = this->size();
       
       if(len > new_size){
@@ -629,15 +633,26 @@ class list
    //! <b>Complexity</b>: Linear to the difference between size() and new_size.
    void resize(size_type new_size)
    {
-      iterator i = this->begin(), iend = this->end();
+      iterator iend = this->end();
       size_type len = this->size();
       
       if(len > new_size){
          size_type to_erase = len - new_size;
-         while(to_erase--){
-            --iend;
+         iterator ifirst;
+         if(to_erase < len/2u){
+            ifirst = iend;
+            while(to_erase--){
+               --ifirst;
+            }
          }
-         this->erase(iend, this->end());
+         else{
+            ifirst = this->begin();
+            size_type to_skip = len - to_erase;
+            while(to_skip--){
+               ++ifirst;
+            }
+         }
+         this->erase(ifirst, iend);
       }
       else{
          this->priv_create_and_insert_nodes(this->end(), new_size - len);
@@ -759,7 +774,7 @@ class list
    #else
    iterator insert(iterator p, T &&x) 
    {
-      NodePtr tmp = AllocHolder::create_node(move(x));
+      NodePtr tmp = AllocHolder::create_node(detail::move_impl(x));
       return iterator(this->icont().insert(p.get(), *tmp));
    }
    #endif
@@ -782,7 +797,7 @@ class list
    //!
    //! <b>Complexity</b>: Linear to the distance between first and last.
    iterator erase(iterator first, iterator last)
-   {  return iterator(this->icont().erase_and_dispose(first.get(), last.get(), Destroyer(this->node_alloc()))); }
+   {  return iterator(AllocHolder::erase_range(first.get(), last.get(), alloc_version())); }
 
    //! <b>Effects</b>: Assigns the n copies of val to *this.
    //!
@@ -1081,6 +1096,7 @@ class list
 
    /// @cond
    private:
+
    //Iterator range version
    template<class InpIterator>
    void priv_create_and_insert_nodes
@@ -1156,7 +1172,7 @@ class list
 
    template<class Integer>
    void priv_insert_dispatch(iterator p, Integer n, Integer x, detail::true_) 
-   {  this->priv_create_and_insert_nodes(p, n, x);  }
+   {  this->insert(p, (size_type)n, x);  }
 
    void priv_fill_assign(size_type n, const T& val) 
    {

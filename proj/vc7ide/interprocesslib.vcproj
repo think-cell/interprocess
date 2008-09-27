@@ -173,6 +173,9 @@
 					RelativePath="..\..\..\..\boost\interprocess\allocators\detail\adaptive_node_pool.hpp">
 				</File>
 				<File
+					RelativePath="..\..\..\..\boost\interprocess\allocators\detail\allocator_common.hpp">
+				</File>
+				<File
 					RelativePath="..\..\..\..\boost\interprocess\allocators\detail\node_pool.hpp">
 				</File>
 				<File
@@ -237,10 +240,6 @@
 			<File
 				RelativePath="..\..\..\..\boost\interprocess\sync\upgradable_lock.hpp">
 			</File>
-			<Filter
-				Name="win32"
-				Filter="">
-			</Filter>
 			<Filter
 				Name="posix"
 				Filter="">
@@ -317,6 +316,9 @@
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}">
 			<File
+				RelativePath="..\..\..\..\boost\interprocess\anonymous_shared_memory.hpp">
+			</File>
+			<File
 				RelativePath="..\..\..\..\boost\interprocess\creation_tags.hpp">
 			</File>
 			<File
@@ -387,6 +389,9 @@
 				RelativePath="..\..\..\..\boost\interprocess\detail\in_place_interface.hpp">
 			</File>
 			<File
+				RelativePath="..\..\..\..\boost\interprocess\detail\interprocess_tester.hpp">
+			</File>
+			<File
 				RelativePath="..\..\..\..\boost\interprocess\detail\iterators.hpp">
 			</File>
 			<File
@@ -430,6 +435,9 @@
 			</File>
 			<File
 				RelativePath="..\..\..\..\boost\interprocess\detail\segment_manager_helper.hpp">
+			</File>
+			<File
+				RelativePath="..\..\..\..\boost\interprocess\detail\tmp_dir_helpers.hpp">
 			</File>
 			<File
 				RelativePath="..\..\..\..\boost\interprocess\detail\type_traits.hpp">
@@ -568,6 +576,9 @@
 			</File>
 			<File
 				RelativePath="..\..\test\util.hpp">
+			</File>
+			<File
+				RelativePath="..\..\test\vector_test.hpp">
 			</File>
 		</Filter>
 		<Filter

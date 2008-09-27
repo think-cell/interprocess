@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-// (C) Copyright Ion Gaztanaga 2005-2007. Distributed under the Boost
+// (C) Copyright Ion Gaztanaga 2005-2008. Distributed under the Boost
 // Software License, Version 1.0. (See accompanying file
 // LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
@@ -23,6 +23,8 @@
 #include <boost/interprocess/detail/cast_tags.hpp>
 #include <boost/interprocess/detail/mpl.hpp>
 #include <boost/assert.hpp>
+#include <ostream>
+#include <istream>
 #include <iterator>
 
 //!\file
@@ -51,30 +53,31 @@ class offset_ptr
 {
    /// @cond
    typedef offset_ptr<PointedType>           self_t;
-   typedef const PointedType *               const_pointer_t;
-   typedef typename detail::add_reference
-      <const PointedType>::type              const_reference_t;
 
    void unspecified_bool_type_func() const {}
    typedef void (self_t::*unspecified_bool_type)() const;
 
    #if defined(_MSC_VER) && (_MSC_VER >= 1400)
-   __declspec(noinline)
+   __declspec(noinline) //this workaround is needed for msvc-8.0 and msvc-9.0
    #endif
+   void set_offset(const volatile void *ptr)
+   {  set_offset((const void*)ptr); }
+
    void set_offset(const void *ptr)
    {
+      const char *p = static_cast<const char*>(const_cast<const void*>(ptr));
       //offset == 1 && ptr != 0 is not legal for this pointer
       if(!ptr){
          m_offset = 1;
       }
       else{
-         m_offset = detail::char_ptr_cast(ptr) - detail::char_ptr_cast(this);
+         m_offset = p - detail::char_ptr_cast(this);
          BOOST_ASSERT(m_offset != 1);
       }
    }
 
    #if defined(_MSC_VER) && (_MSC_VER >= 1400)
-   __declspec(noinline)
+   __declspec(noinline) //this workaround is needed for msvc-8.0 and msvc-9.0
    #endif
    void* get_pointer() const
    {  return (m_offset == 1) ? 0 : (detail::char_ptr_cast(this) + m_offset); }
@@ -147,6 +150,9 @@ class offset_ptr
    //!Never throws.
    pointer get()const
    {  return (pointer)this->get_pointer();   }
+
+   std::ptrdiff_t get_offset()
+   {  return m_offset;  }
 
    //!Pointer-like -> operator. It can return 0 pointer.
    //!Never throws.
@@ -285,14 +291,14 @@ inline bool operator>= (const offset_ptr<T1> &pt1,
 template<class E, class T, class Y> 
 inline std::basic_ostream<E, T> & operator<< 
    (std::basic_ostream<E, T> & os, offset_ptr<Y> const & p)
-{  return os << p.get();   }
+{  return os << p.get_offset();   }
 
 //!operator>> 
 //!for offset ptr
 template<class E, class T, class Y> 
 inline std::basic_istream<E, T> & operator>> 
-   (std::basic_istream<E, T> & os, offset_ptr<Y> & p)
-{  Y * tmp; return os >> tmp; p = tmp;   }
+   (std::basic_istream<E, T> & is, offset_ptr<Y> & p)
+{  return is >> p.get_offset();  }
 
 //!std::ptrdiff_t + offset_ptr
 //!operation
@@ -317,7 +323,6 @@ inline void swap (boost::interprocess::offset_ptr<T> &pt,
    pt2 = ptr;
 }
 
-/*
 //!Simulation of static_cast between pointers. Never throws.
 template<class T, class U> 
 inline boost::interprocess::offset_ptr<T> 
@@ -353,7 +358,7 @@ inline boost::interprocess::offset_ptr<T>
    return boost::interprocess::offset_ptr<T>
             (r, boost::interprocess::detail::reinterpret_cast_tag());  
 }
-*/
+
 }  //namespace interprocess {
 
 /// @cond
@@ -397,35 +402,46 @@ namespace intrusive {
 
 //Predeclaration to avoid including header
 template<class VoidPointer, std::size_t N>
-struct has_pointer_plus_bit;
+struct max_pointer_plus_bits;
 
-template<std::size_t N>
-struct has_pointer_plus_bit<boost::interprocess::offset_ptr<void>, N>
+template<std::size_t Alignment>
+struct max_pointer_plus_bits<boost::interprocess::offset_ptr<void>, Alignment>
 {
-   enum  {  value = (N % 4u) == 0  };
+   //The offset ptr can embed one bit less than the alignment since it
+   //uses offset == 1 to store the null pointer.
+   static const std::size_t value = ::boost::interprocess::detail::ls_zeros<Alignment>::value - 1;
 };
 
 //Predeclaration
-template<class Pointer>
-struct pointer_plus_bit;
+template<class Pointer, std::size_t NumBits>
+struct pointer_plus_bits;
 
-//Specialization
-template<class T>
-struct pointer_plus_bit<boost::interprocess::offset_ptr<T> >
+template<class T, std::size_t NumBits>
+struct pointer_plus_bits<boost::interprocess::offset_ptr<T>, NumBits>
 {
    typedef boost::interprocess::offset_ptr<T>         pointer;
+   //Bits are stored in the lower bits of the pointer except the LSB,
+   //because this bit is used to represent the null pointer.
+   static const std::size_t Mask = ((std::size_t(1) << NumBits)-1)<<1u; 
 
    static pointer get_pointer(const pointer &n)
-   {  return (T*)(std::size_t(n.get()) & ~std::size_t(2u));  }
+   {  return (T*)(std::size_t(n.get()) & ~std::size_t(Mask));  }
 
    static void set_pointer(pointer &n, pointer p)
-   {  n = (T*)(std::size_t(p.get()) | (std::size_t(n.get()) & std::size_t(2u))); }
+   {
+      std::size_t pint = std::size_t(p.get());
+      assert(0 == (std::size_t(pint) & Mask));
+      n = (T*)(pint | (std::size_t(n.get()) & std::size_t(Mask)));
+   }
 
-   static bool get_bit(const pointer &n)
-   {  return 0 != (std::size_t(n.get()) & std::size_t(2u));  }
+   static std::size_t get_bits(const pointer &n)
+   {  return(std::size_t(n.get()) & std::size_t(Mask)) >> 1u;  }
 
-   static void set_bit(pointer &n, bool c)
-   {  n = (T*)(std::size_t(get_pointer(n).get()) | (std::size_t(c) << 1u));  }
+   static void set_bits(pointer &n, std::size_t b)
+   {
+      assert(b < (std::size_t(1) << NumBits));
+      n = (T*)(std::size_t(get_pointer(n).get()) | (b << 1u));
+   }
 };
 
 }  //namespace intrusive

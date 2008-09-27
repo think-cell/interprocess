@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-// (C) Copyright Ion Gaztanaga 2005-2007. Distributed under the Boost
+// (C) Copyright Ion Gaztanaga 2005-2008. Distributed under the Boost
 // Software License, Version 1.0. (See accompanying file
 // LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
@@ -40,7 +40,9 @@ struct iset_index_aux
    typedef typename 
       segment_manager_base::void_pointer                       void_pointer;
    typedef typename bi::make_set_base_hook
-      <bi::void_pointer<void_pointer> >::type                  derivation_hook;
+      < bi::void_pointer<void_pointer>
+      , bi::optimize_size<true>
+      >::type                                                  derivation_hook;
 
    typedef typename MapConfig::template 
       intrusive_value_type<derivation_hook>::type              value_type;

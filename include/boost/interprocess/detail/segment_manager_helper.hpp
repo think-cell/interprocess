@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-// (C) Copyright Ion Gaztanaga 2005-2007. Distributed under the Boost
+// (C) Copyright Ion Gaztanaga 2005-2008. Distributed under the Boost
 // Software License, Version 1.0. (See accompanying file
 // LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
@@ -210,28 +210,10 @@ inline void array_construct(void *mem, std::size_t num, detail::in_place_interfa
    BOOST_CATCH(...){
       std::size_t destroyed = 0;
       table.destroy_n(mem, constructed, destroyed);
-      BOOST_RETHROW;
+      BOOST_RETHROW
    }
    BOOST_CATCH_END
 }
-
-//Anti-exception node eraser
-template<class Cont>
-class value_eraser
-{
-   public:
-   value_eraser(Cont & cont, typename Cont::iterator it) 
-      : m_cont(cont), m_index_it(it), m_erase(true){}
-   ~value_eraser()  
-   {  if(m_erase) m_cont.erase(m_index_it);  }
-
-   void release() {  m_erase = false;  }
-
-   private:
-   Cont                   &m_cont;
-   typename Cont::iterator m_index_it;
-   bool                    m_erase;
-};
 
 template<class CharT>
 struct intrusive_compare_key

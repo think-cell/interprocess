@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-// (C) Copyright Ion Gaztanaga 2005-2007. Distributed under the Boost
+// (C) Copyright Ion Gaztanaga 2005-2008. Distributed under the Boost
 // Software License, Version 1.0. (See accompanying file
 // LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
@@ -24,7 +24,7 @@
 #include <boost/interprocess/detail/managed_open_or_create_impl.hpp>
 #include <boost/interprocess/detail/posix_time_types_wrk.hpp>
 #include <boost/interprocess/sync/emulation/named_creation_functor.hpp>
-#ifdef BOOST_INTERPROCESS_POSIX_SEMAPHORES
+#if defined BOOST_INTERPROCESS_NAMED_MUTEX_USES_POSIX_SEMAPHORES
 #include <boost/interprocess/sync/interprocess_mutex.hpp>
 #include <boost/interprocess/sync/scoped_lock.hpp>
 #endif
@@ -34,9 +34,15 @@
 //!Describes process-shared variables interprocess_condition class
 
 namespace boost {
-
 namespace interprocess {
 
+/// @cond
+namespace detail{ class interprocess_tester; }
+/// @endcond
+
+//! A global condition variable that can be created by name.
+//! This condition variable is designed to work with named_mutex and
+//! can't be placed in shared memory or memory mapped files.
 class named_condition
 {
    /// @cond
@@ -116,37 +122,62 @@ class named_condition
       interprocess_condition cond_;
       //If named_mutex is implemented using semaphores
       //we need to store an additional mutex
-      #ifdef BOOST_INTERPROCESS_POSIX_SEMAPHORES
+      #if defined (BOOST_INTERPROCESS_NAMED_MUTEX_USES_POSIX_SEMAPHORES)
       interprocess_mutex mutex_;
       #endif
    };
 
    interprocess_condition *condition() const
-   {  return &static_cast<condition_holder*>(m_shmem.get_address())->cond_; }
+   {  return &static_cast<condition_holder*>(m_shmem.get_user_address())->cond_; }
 
-   #ifdef BOOST_INTERPROCESS_POSIX_SEMAPHORES
+   template <class Lock>
+   class lock_inverter
+   {
+      Lock &l_;
+      public:
+      lock_inverter(Lock &l)
+         :  l_(l)
+      {}
+      void lock()    {   l_.unlock();   }
+      void unlock()  {   l_.lock();     }
+   };
+
+   #if defined (BOOST_INTERPROCESS_NAMED_MUTEX_USES_POSIX_SEMAPHORES)
    interprocess_mutex *mutex() const
-   {  return &static_cast<condition_holder*>(m_shmem.get_address())->mutex_; }
+   {  return &static_cast<condition_holder*>(m_shmem.get_user_address())->mutex_; }
 
    template <class Lock>
    void do_wait(Lock& lock)
-   {
-      scoped_lock<interprocess_mutex> internal_lock(*this->mutex());
-      lock.unlock();
-      this->condition()->wait(internal_lock);
-      lock.lock();
+   {  
+      //lock internal before unlocking external to avoid race with a notifier
+      scoped_lock<interprocess_mutex>     internal_lock(*this->mutex());
+      lock_inverter<Lock> inverted_lock(lock);
+      scoped_lock<lock_inverter<Lock> >   external_unlock(inverted_lock);
+
+      //unlock internal first to avoid deadlock with near simultaneous waits
+      scoped_lock<interprocess_mutex>     internal_unlock;
+      internal_lock.swap(internal_unlock);
+      this->condition()->wait(internal_unlock);
    }
 
    template <class Lock>
    bool do_timed_wait(Lock& lock, const boost::posix_time::ptime &abs_time)
    {
-      scoped_lock<interprocess_mutex> internal_lock(*this->mutex());
-      lock.unlock();
-      bool r = this->condition()->timed_wait(internal_lock, abs_time);
-      lock.lock();
-      return r;
+      //lock internal before unlocking external to avoid race with a notifier  
+      scoped_lock<interprocess_mutex>     internal_lock(*this->mutex(), abs_time);  
+      if(!internal_lock) return false;
+      lock_inverter<Lock> inverted_lock(lock);  
+      scoped_lock<lock_inverter<Lock> >   external_unlock(inverted_lock);  
+
+      //unlock internal first to avoid deadlock with near simultaneous waits  
+      scoped_lock<interprocess_mutex>     internal_unlock;  
+      internal_lock.swap(internal_unlock);  
+      return this->condition()->timed_wait(internal_unlock, abs_time);  
    }
-   #endif   //#ifdef BOOST_INTERPROCESS_POSIX_SEMAPHORES
+   #endif
+
+   friend class detail::interprocess_tester;
+   void dont_close_on_destruction();
 
    detail::managed_open_or_create_impl<shared_memory_object> m_shmem;
 
@@ -154,6 +185,8 @@ class named_condition
    typedef detail::named_creation_functor<condition_holder> construct_func_t;
    /// @endcond
 };
+
+/// @cond
 
 inline named_condition::~named_condition()
 {}
@@ -188,7 +221,10 @@ inline named_condition::named_condition(open_only_t, const char *name)
                ,construct_func_t(detail::DoOpen))
 {}
 
-#ifdef BOOST_INTERPROCESS_POSIX_SEMAPHORES
+inline void named_condition::dont_close_on_destruction()
+{  detail::interprocess_tester::dont_close_on_destruction(m_shmem);  }
+
+#if defined(BOOST_INTERPROCESS_NAMED_MUTEX_USES_POSIX_SEMAPHORES)
 
 inline void named_condition::notify_one()
 {
@@ -243,7 +279,7 @@ inline bool named_condition::timed_wait
    return true;
 }
 
-#else //#ifdef BOOST_INTERPROCESS_POSIX_SEMAPHORES
+#else
 
 inline void named_condition::notify_one()
 {  this->condition()->notify_one();  }
@@ -293,10 +329,12 @@ inline bool named_condition::timed_wait
    return true;
 }
 
-#endif   //#ifdef BOOST_INTERPROCESS_POSIX_SEMAPHORES
+#endif
 
 inline bool named_condition::remove(const char *name)
 {  return shared_memory_object::remove(name); }
+
+/// @endcond
 
 }  //namespace interprocess
 }  //namespace boost

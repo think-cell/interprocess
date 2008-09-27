@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-// (C) Copyright Ion Gaztanaga 2005-2007.
+// (C) Copyright Ion Gaztanaga 2005-2008.
 //
 // Distributed under the Boost Software License, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at
@@ -17,7 +17,7 @@
 #  pragma once
 #endif
 
-//#include <functional>
+#include <cstddef>
 
 namespace boost {
 namespace interprocess { 
@@ -117,8 +117,27 @@ template <class T>
 struct identity 
 //   : public std::unary_function<T,T> 
 {
+   typedef T type;
    const T& operator()(const T& x) const 
    { return x; }
+};
+
+template<std::size_t S>
+struct ls_zeros
+{
+   static const std::size_t value = (S & std::size_t(1)) ? 0 : (1u + ls_zeros<(S >> 1u)>::value);
+};
+
+template<>
+struct ls_zeros<0>
+{
+   static const std::size_t value = 0;
+};
+
+template<>
+struct ls_zeros<1>
+{
+   static const std::size_t value = 0;
 };
 
 }  //namespace detail { 

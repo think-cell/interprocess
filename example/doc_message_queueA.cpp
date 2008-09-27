@@ -7,6 +7,7 @@
 // See http://www.boost.org/libs/interprocess for documentation.
 //
 //////////////////////////////////////////////////////////////////////////////
+#include <boost/interprocess/detail/config_begin.hpp>
 //[doc_message_queueA
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <iostream>
@@ -34,12 +35,11 @@ int main ()
       }
    }
    catch(interprocess_exception &ex){
-      message_queue::remove("message_queue");
       std::cout << ex.what() << std::endl;
       return 1;
    }
-   message_queue::remove("message_queue");
 
    return 0;
 }
 //]
+#include <boost/interprocess/detail/config_end.hpp>

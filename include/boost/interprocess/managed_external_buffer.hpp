@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-// (C) Copyright Ion Gaztanaga 2005-2007. Distributed under the Boost
+// (C) Copyright Ion Gaztanaga 2005-2008. Distributed under the Boost
 // Software License, Version 1.0. (See accompanying file
 // LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
@@ -20,6 +20,7 @@
 #include <boost/interprocess/creation_tags.hpp>
 #include <boost/interprocess/detail/managed_memory_impl.hpp>
 #include <boost/interprocess/detail/move.hpp>
+#include <cassert>
 
 //!\file
 //!Describes a named user memory allocation user class. 
@@ -45,10 +46,18 @@ class basic_managed_external_buffer
    /// @endcond
 
    public:
+
+   //!Default constructor. Does nothing.
+   //!Useful in combination with move semantics
+   basic_managed_external_buffer()
+   {}
+
    //!Creates and places the segment manager. This can throw
    basic_managed_external_buffer
       (create_only_t, void *addr, std::size_t size)
    {
+      //Check if alignment is correct
+      assert((0 == (((std::size_t)addr) & (AllocationAlgorithm::Alignment - std::size_t(1u)))));
       if(!base_t::create_impl(addr, size)){
          throw interprocess_exception();
       }
@@ -58,6 +67,8 @@ class basic_managed_external_buffer
    basic_managed_external_buffer
       (open_only_t, void *addr, std::size_t size)
    {
+      //Check if alignment is correct
+      assert((0 == (((std::size_t)addr) & (AllocationAlgorithm::Alignment - std::size_t(1u)))));
       if(!base_t::open_impl(addr, size)){
          throw interprocess_exception();
       }
@@ -66,7 +77,7 @@ class basic_managed_external_buffer
    //!Moves the ownership of "moved"'s managed memory to *this. Does not throw
    #ifndef BOOST_INTERPROCESS_RVALUE_REFERENCE
    basic_managed_external_buffer
-      (detail::moved_object<basic_managed_external_buffer> &moved)
+      (detail::moved_object<basic_managed_external_buffer> moved)
    {  this->swap(moved.get());   }
    #else
    basic_managed_external_buffer
@@ -77,7 +88,7 @@ class basic_managed_external_buffer
    //!Moves the ownership of "moved"'s managed memory to *this. Does not throw
    #ifndef BOOST_INTERPROCESS_RVALUE_REFERENCE
    basic_managed_external_buffer &operator=
-      (detail::moved_object<basic_managed_external_buffer> &moved)
+      (detail::moved_object<basic_managed_external_buffer> moved)
    {  this->swap(moved.get());   return *this;  }
    #else
    basic_managed_external_buffer &operator=
@@ -94,6 +105,26 @@ class basic_managed_external_buffer
    {  base_t::swap(other); }
 
 };
+
+///@cond
+
+//!Trait class to detect if a type is
+//!movable
+template
+      <
+         class CharType, 
+         class AllocationAlgorithm, 
+         template<class IndexConfig> class IndexType
+      >
+struct is_movable<basic_managed_external_buffer
+   <CharType,  AllocationAlgorithm, IndexType>
+>
+{
+   static const bool value = true;
+};
+
+///@endcond
+
 
 }  //namespace interprocess {
 }  //namespace boost {

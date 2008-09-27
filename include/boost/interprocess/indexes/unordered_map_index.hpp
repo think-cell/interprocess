@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-// (C) Copyright Ion Gaztanaga 2005-2007. Distributed under the Boost
+// (C) Copyright Ion Gaztanaga 2005-2008. Distributed under the Boost
 // Software License, Version 1.0. (See accompanying file
 // LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
@@ -26,6 +26,8 @@
 
 namespace boost {
 namespace interprocess {
+
+///@cond
 
 //!Helper class to define typedefs from
 //!IndexTraits
@@ -54,6 +56,8 @@ struct unordered_map_index_aux
    typedef unordered_map<key_type,  mapped_type, hasher,
                          key_equal, allocator_type>      index_t;
 };
+
+///@endcond
 
 //!Index type based in unordered_map. Just derives from unordered_map and
 //!defines the interface needed by managed memory segments

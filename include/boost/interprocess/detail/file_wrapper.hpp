@@ -51,7 +51,7 @@ class file_wrapper
    //!Does not throw
    #ifndef BOOST_INTERPROCESS_RVALUE_REFERENCE
    file_wrapper
-      (detail::moved_object<file_wrapper> &moved)
+      (detail::moved_object<file_wrapper> moved)
    {  this->swap(moved.get());   }
    #else
    file_wrapper(file_wrapper &&moved)
@@ -63,7 +63,7 @@ class file_wrapper
    //!Does not throw
    #ifndef BOOST_INTERPROCESS_RVALUE_REFERENCE
    file_wrapper &operator=
-      (detail::moved_object<file_wrapper> &moved)
+      (detail::moved_object<file_wrapper> moved)
    {  
       file_wrapper tmp(moved);
       this->swap(tmp);
@@ -72,7 +72,7 @@ class file_wrapper
    #else
    file_wrapper &operator=(file_wrapper &&moved)
    {  
-      file_wrapper tmp(move(moved));
+      file_wrapper tmp(detail::move_impl(moved));
       this->swap(tmp);
       return *this;  
    }
@@ -86,7 +86,7 @@ class file_wrapper
    //!Returns false on error. Never throws
    static bool remove(const char *name);
    
-   //!Sets the size of the fil
+   //!Sets the size of the file
    void truncate(offset_t length);
 
    //!Closes the
@@ -96,6 +96,10 @@ class file_wrapper
    //!Returns the name of the file
    //!used in the constructor
    const char *get_name() const;
+
+   //!Returns the name of the file
+   //!used in the constructor
+   bool get_size(offset_t &size) const;
 
    //!Returns access mode
    //!used in the constructor
@@ -125,6 +129,9 @@ inline file_wrapper::~file_wrapper()
 
 inline const char *file_wrapper::get_name() const
 {  return m_filename.c_str(); }
+
+inline bool file_wrapper::get_size(offset_t &size) const
+{  return get_file_size((file_handle_t)m_handle, size);  }
 
 inline void file_wrapper::swap(file_wrapper &other)
 {  

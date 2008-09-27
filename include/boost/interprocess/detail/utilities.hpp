@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-// (C) Copyright Ion Gaztanaga 2005-2007.
+// (C) Copyright Ion Gaztanaga 2005-2008.
 // (C) Copyright Gennaro Prota 2003 - 2004.
 //
 // Distributed under the Boost Software License, Version 1.0.
@@ -25,6 +25,9 @@
 #include <boost/interprocess/detail/move.hpp>
 #include <boost/type_traits/has_trivial_destructor.hpp>
 #include <boost/interprocess/detail/min_max.hpp>
+#include <boost/interprocess/detail/type_traits.hpp>
+#include <boost/interprocess/detail/iterators.hpp>
+#include <boost/interprocess/detail/version_type.hpp>
 #include <utility>
 #include <algorithm>
 
@@ -70,14 +73,27 @@ template <class Allocator>
 struct scoped_ptr_dealloc_functor
 {
    typedef typename Allocator::pointer pointer;
+   typedef detail::integral_constant<unsigned,
+      boost::interprocess::detail::
+         version<Allocator>::value>                   alloc_version;
+   typedef detail::integral_constant<unsigned, 1>     allocator_v1;
+   typedef detail::integral_constant<unsigned, 2>     allocator_v2;
 
+   private:
+   void priv_deallocate(const typename Allocator::pointer &p, allocator_v1)
+   {  m_alloc.deallocate(p, 1); }
+
+   void priv_deallocate(const typename Allocator::pointer &p, allocator_v2)
+   {  m_alloc.deallocate_one(p); }
+
+   public:
    Allocator& m_alloc;
 
    scoped_ptr_dealloc_functor(Allocator& a)
-         : m_alloc(a) {}
+      : m_alloc(a) {}
 
    void operator()(pointer ptr)
-      {  if (ptr) m_alloc.deallocate(ptr, 1);  }
+   {  if (ptr) priv_deallocate(ptr, alloc_version());  }
 };
 
 //!A deleter for scoped_ptr that deallocates the memory
@@ -86,7 +102,20 @@ template <class Allocator>
 struct scoped_deallocator
 {
    typedef typename Allocator::pointer pointer;
+   typedef detail::integral_constant<unsigned,
+      boost::interprocess::detail::
+         version<Allocator>::value>                   alloc_version;
+   typedef detail::integral_constant<unsigned, 1>     allocator_v1;
+   typedef detail::integral_constant<unsigned, 2>     allocator_v2;
 
+   private:
+   void priv_deallocate(allocator_v1)
+   {  m_alloc.deallocate(m_ptr, 1); }
+
+   void priv_deallocate(allocator_v2)
+   {  m_alloc.deallocate_one(m_ptr); }
+
+   public:
    pointer     m_ptr;
    Allocator&  m_alloc;
 
@@ -94,7 +123,7 @@ struct scoped_deallocator
       : m_ptr(p), m_alloc(a) {}
 
    ~scoped_deallocator()
-   {  if (m_ptr) m_alloc.deallocate(m_ptr, 1);  }
+   {  if (m_ptr)priv_deallocate(alloc_version());  }
 
    void release()
    {  m_ptr = 0; }
@@ -189,8 +218,21 @@ template <class A>
 class allocator_destroyer
 {
    typedef typename A::value_type value_type;
+   typedef detail::integral_constant<unsigned,
+      boost::interprocess::detail::
+         version<A>::value>                           alloc_version;
+   typedef detail::integral_constant<unsigned, 1>     allocator_v1;
+   typedef detail::integral_constant<unsigned, 2>     allocator_v2;
+
    private:
    A & a_;
+
+   private:
+   void priv_deallocate(const typename A::pointer &p, allocator_v1)
+   {  a_.deallocate(p, 1); }
+
+   void priv_deallocate(const typename A::pointer &p, allocator_v2)
+   {  a_.deallocate_one(p); }
 
    public:
    allocator_destroyer(A &a)
@@ -200,35 +242,86 @@ class allocator_destroyer
    void operator()(const typename A::pointer &p)
    {  
       detail::get_pointer(p)->~value_type();
-      a_.deallocate(p, 1);
+      priv_deallocate(p, alloc_version());
    }
 };
 
-//!A class used for exception-safe multi-allocation + construction.
-template <class Allocator>
-struct multiallocation_deallocator
+template <class A>
+class allocator_destroyer_and_chain_builder
 {
-   typedef typename Allocator::multiallocation_iterator multiallocation_iterator;
+   typedef typename A::value_type value_type;
+   typedef typename A::multiallocation_iterator multiallocation_iterator;
+   typedef typename A::multiallocation_chain    multiallocation_chain;
 
-   multiallocation_iterator m_itbeg;
-   Allocator&  m_alloc;
+   A & a_;
+   multiallocation_chain &c_;
 
-   multiallocation_deallocator(multiallocation_iterator itbeg, Allocator& a)
-      : m_itbeg(itbeg), m_alloc(a) {}
+   public:
+   allocator_destroyer_and_chain_builder(A &a, multiallocation_chain &c)
+      :  a_(a), c_(c)
+   {}
 
-   ~multiallocation_deallocator()
-   {
-      multiallocation_iterator endit;
-      while(m_itbeg != endit){
-         m_alloc.deallocate(&*m_itbeg, 1);
-         ++m_itbeg;
-      }
+   void operator()(const typename A::pointer &p)
+   {  
+      value_type *vp = detail::get_pointer(p);
+      vp->~value_type();
+      c_.push_back(vp);
    }
-   
-   void increment()
-   {  ++m_itbeg;  }
 };
 
+template <class A>
+class allocator_multialloc_chain_node_deallocator
+{
+   typedef typename A::value_type value_type;
+   typedef typename A::multiallocation_iterator multiallocation_iterator;
+   typedef typename A::multiallocation_chain    multiallocation_chain;
+   typedef allocator_destroyer_and_chain_builder<A> chain_builder;
+
+   A & a_;
+   multiallocation_chain c_;
+
+   public:
+   allocator_multialloc_chain_node_deallocator(A &a)
+      :  a_(a), c_()
+   {}
+
+   chain_builder get_chain_builder()
+   {  return chain_builder(a_, c_);  }
+
+   ~allocator_multialloc_chain_node_deallocator()
+   {
+      multiallocation_iterator it(c_.get_it());
+      if(it != multiallocation_iterator())
+         a_.deallocate_individual(it);
+   }
+};
+
+template <class A>
+class allocator_multialloc_chain_array_deallocator
+{
+   typedef typename A::value_type value_type;
+   typedef typename A::multiallocation_iterator multiallocation_iterator;
+   typedef typename A::multiallocation_chain    multiallocation_chain;
+   typedef allocator_destroyer_and_chain_builder<A> chain_builder;
+
+   A & a_;
+   multiallocation_chain c_;
+
+   public:
+   allocator_multialloc_chain_array_deallocator(A &a)
+      :  a_(a), c_()
+   {}
+
+   chain_builder get_chain_builder()
+   {  return chain_builder(a_, c_);  }
+
+   ~allocator_multialloc_chain_array_deallocator()
+   {
+      multiallocation_iterator it(c_.get_it());
+      if(it != multiallocation_iterator())
+         a_.deallocate_many(it);
+   }
+};
 
 //!A class used for exception-safe multi-allocation + construction.
 template <class Allocator>
@@ -280,11 +373,24 @@ inline std::size_t get_rounded_size(std::size_t orig_size, std::size_t round_to)
    return ((orig_size-1)/round_to+1)*round_to;
 }
 
+//Truncates "orig_size" to a multiple of "multiple" bytes.
 inline std::size_t get_truncated_size(std::size_t orig_size, std::size_t multiple)
 {
    return orig_size/multiple*multiple;
 }
- 
+
+//Rounds "orig_size" by excess to round_to bytes. round_to must be power of two
+inline std::size_t get_rounded_size_po2(std::size_t orig_size, std::size_t round_to)
+{
+   return ((orig_size-1)&(~(round_to-1))) + round_to;
+}
+
+//Truncates "orig_size" to a multiple of "multiple" bytes. multiple must be power of two
+inline std::size_t get_truncated_size_po2(std::size_t orig_size, std::size_t multiple)
+{
+   return (orig_size & (~(multiple-1)));
+}
+
 template <std::size_t OrigSize, std::size_t RoundTo>
 struct ct_rounded_size
 {
@@ -420,61 +526,61 @@ struct pair
    #ifndef BOOST_INTERPROCESS_RVALUE_REFERENCE
    template <class D, class S>
    pair(const detail::moved_object<std::pair<D, S> >& p)
-      : first(move(p.get().first)), second(move(p.get().second))
+      : first(detail::move_impl(p.get().first)), second(detail::move_impl(p.get().second))
    {}
    #else
    template <class D, class S>
    pair(std::pair<D, S> && p)
-      : first(move(p.first)), second(move(p.second))
+      : first(detail::move_impl(p.first)), second(detail::move_impl(p.second))
    {}
    #endif
 
    #ifndef BOOST_INTERPROCESS_RVALUE_REFERENCE
    template <class D, class S>
    pair(const detail::moved_object<pair<D, S> >& p)
-      : first(move(p.get().first)), second(move(p.get().second))
+      : first(detail::move_impl(p.get().first)), second(detail::move_impl(p.get().second))
    {}
    #else
    template <class D, class S>
    pair(pair<D, S> && p)
-      : first(move(p.first)), second(move(p.second))
+      : first(detail::move_impl(p.first)), second(detail::move_impl(p.second))
    {}
    #endif
 
    #ifndef BOOST_INTERPROCESS_RVALUE_REFERENCE
    template <class U, class V>
    pair(const detail::moved_object<U> &x, const detail::moved_object<V> &y)
-      : first(move(x.get())), second(move(y.get()))
+      : first(detail::move_impl(x.get())), second(detail::move_impl(y.get()))
    {}
    #else
    template <class U, class V>
    pair(U &&x, V &&y)
-      : first(move(x)), second(move(y))
+      : first(detail::move_impl(x)), second(detail::move_impl(y))
    {}
    #endif
 
    #ifndef BOOST_INTERPROCESS_RVALUE_REFERENCE
    pair(const detail::moved_object<pair> &p)
-      : first(move(p.get().first)), second(move(p.get().second))
+      : first(detail::move_impl(p.get().first)), second(detail::move_impl(p.get().second))
    {}
    #else
    pair(pair &&p)
-      : first(move(p.first)), second(move(p.second))
+      : first(detail::move_impl(p.first)), second(detail::move_impl(p.second))
    {}
    #endif
 
    #ifndef BOOST_INTERPROCESS_RVALUE_REFERENCE
    pair& operator=(const detail::moved_object<pair> &p)
    {
-      first  = move(p.get().first);
-      second = move(p.get().second);
+      first  = detail::move_impl(p.get().first);
+      second = detail::move_impl(p.get().second);
       return *this;
    }
    #else
    pair& operator=(pair &&p)
    {
-      first  = move(p.first);
-      second = move(p.second);
+      first  = detail::move_impl(p.first);
+      second = detail::move_impl(p.second);
       return *this;
    }
    #endif
@@ -490,16 +596,16 @@ struct pair
    template <class D, class S>
    pair& operator=(const detail::moved_object<std::pair<D, S> > &p)
    {
-      first  = move(p.get().first);
-      second = move(p.get().second);
+      first  = detail::move_impl(p.get().first);
+      second = detail::move_impl(p.get().second);
       return *this;
    }
    #else
    template <class D, class S>
    pair& operator=(std::pair<D, S> &&p)
    {
-      first  = move(p.first);
-      second = move(p.second);
+      first  = detail::move_impl(p.first);
+      second = detail::move_impl(p.second);
       return *this;
    }
    #endif
@@ -577,6 +683,60 @@ inline void swap(pair<T1, T2>&&x, pair<T1, T2>&&y)
 }
 #endif
 
+template<class T>
+struct cast_functor
+{
+   typedef typename detail::add_reference<T>::type result_type;
+   result_type operator()(char &ptr) const
+   {  return *static_cast<T*>(static_cast<void*>(&ptr));  }
+};
+
+template<class MultiallocChain, class T>
+class multiallocation_chain_adaptor
+{
+   private:
+   MultiallocChain   chain_;
+
+   multiallocation_chain_adaptor
+      (const multiallocation_chain_adaptor &);
+   multiallocation_chain_adaptor &operator=
+      (const multiallocation_chain_adaptor &);
+
+   public:
+   typedef transform_iterator
+      < typename MultiallocChain::
+         multiallocation_iterator
+      , detail::cast_functor <T> >        multiallocation_iterator;
+
+   multiallocation_chain_adaptor()
+      : chain_()
+   {}
+
+   void push_back(T *mem)
+   {  chain_.push_back(mem);  }
+
+   void push_front(T *mem)
+   {  chain_.push_front(mem);  }
+
+   void swap(multiallocation_chain_adaptor &other_chain)
+   {  chain_.swap(other_chain.chain_); }
+
+   void splice_back(multiallocation_chain_adaptor &other_chain)
+   {  chain_.splice_back(other_chain.chain_);   }
+
+   T *pop_front()
+   {  return static_cast<T*>(chain_.pop_front());   }
+
+   bool empty() const
+   {  return chain_.empty(); }
+
+   multiallocation_iterator get_it() const
+   {  return multiallocation_iterator(chain_.get_it()); }
+
+   std::size_t size() const
+   {  return chain_.size(); }
+};
+
 }  //namespace detail {
 
 //!The pair is movable if any of its members is movable
@@ -606,6 +766,54 @@ addressof(T& v)
   return reinterpret_cast<T*>(
        &const_cast<char&>(reinterpret_cast<const volatile char &>(v)));
 }
+
+//Anti-exception node eraser
+template<class Cont>
+class value_eraser
+{
+   public:
+   value_eraser(Cont & cont, typename Cont::iterator it) 
+      : m_cont(cont), m_index_it(it), m_erase(true){}
+   ~value_eraser()  
+   {  if(m_erase) m_cont.erase(m_index_it);  }
+
+   void release() {  m_erase = false;  }
+
+   private:
+   Cont                   &m_cont;
+   typename Cont::iterator m_index_it;
+   bool                    m_erase;
+};
+
+template <class T>
+struct sizeof_value
+{
+   static const std::size_t value = sizeof(T);
+};
+
+template <>
+struct sizeof_value<void>
+{
+   static const std::size_t value = sizeof(void*);
+};
+
+template <>
+struct sizeof_value<const void>
+{
+   static const std::size_t value = sizeof(void*);
+};
+
+template <>
+struct sizeof_value<volatile void>
+{
+   static const std::size_t value = sizeof(void*);
+};
+
+template <>
+struct sizeof_value<const volatile void>
+{
+   static const std::size_t value = sizeof(void*);
+};
 
 }  //namespace interprocess { 
 }  //namespace boost {

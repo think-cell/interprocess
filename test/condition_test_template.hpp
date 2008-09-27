@@ -139,7 +139,7 @@ void condition_test_waits(condition_test_data<Condition, Mutex>* data)
 
     // Test timed_wait.
     while (data->notified != 3)
-        data->condition.timed_wait(lock, ptime_delay(10));
+        data->condition.timed_wait(lock, ptime_delay(5));
     assert(lock ? true : false);
     assert(data->notified == 3);
     data->awoken++;
@@ -147,7 +147,7 @@ void condition_test_waits(condition_test_data<Condition, Mutex>* data)
 
     // Test predicate timed_wait.
     cond_predicate pred(data->notified, 4);
-    bool ret = data->condition.timed_wait(lock, ptime_delay(10), pred);
+    bool ret = data->condition.timed_wait(lock, ptime_delay(5), pred);
     assert(ret);(void)ret;
     assert(lock ? true : false);
     assert(pred());
@@ -177,7 +177,7 @@ void do_test_condition_notify_one()
 template <class Condition, class Mutex>
 void do_test_condition_notify_all()
 {
-   const int NUMTHREADS = 5;
+   const int NUMTHREADS = 3;
    boost::thread_group threads;
    condition_test_data<Condition, Mutex> data;
 
@@ -396,10 +396,10 @@ bool do_test_condition()
    do_test_condition_notify_all<Condition, Mutex>();
    std::cout << "do_test_condition_waits<" << typeid(Condition).name() << "," << typeid(Mutex).name() << std::endl;
    do_test_condition_waits<Condition, Mutex>();
-   std::cout << "do_test_condition_queue_notify_one<" << typeid(Condition).name() << "," << typeid(Mutex).name() << std::endl;
-   do_test_condition_queue_notify_one<Condition, Mutex>();
-   std::cout << "do_test_condition_queue_notify_all<" << typeid(Condition).name() << "," << typeid(Mutex).name() << std::endl;
-   do_test_condition_queue_notify_all<Condition, Mutex>();
+   //std::cout << "do_test_condition_queue_notify_one<" << typeid(Condition).name() << "," << typeid(Mutex).name() << std::endl;
+   //do_test_condition_queue_notify_one<Condition, Mutex>();
+   //std::cout << "do_test_condition_queue_notify_all<" << typeid(Condition).name() << "," << typeid(Mutex).name() << std::endl;
+   //do_test_condition_queue_notify_all<Condition, Mutex>();
    return true;
 }
 

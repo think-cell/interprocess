@@ -97,26 +97,27 @@ int map_test ()
 
          MyStdMap *stdmap2 = new MyStdMap(aux_vect2, aux_vect2 + 50);
 
-         MyShmMultiMap *shmmultiset2 = 
+         MyShmMultiMap *shmmultimap2 = 
             segment.template construct<MyShmMultiMap>("MyShmMultiMap2")
                (detail::make_move_iterator(&aux_vect3[0])
                , detail::make_move_iterator(aux_vect3 + 50)
                , std::less<IntType>(), segment.get_segment_manager());
 
-         MyStdMultiMap *stdmultiset2 = new MyStdMultiMap(aux_vect2, aux_vect2 + 50);
+         MyStdMultiMap *stdmultimap2 = new MyStdMultiMap(aux_vect2, aux_vect2 + 50);
          if(!CheckEqualContainers(shmmap2, stdmap2)) return 1;
-         if(!CheckEqualContainers(shmmultiset2, stdmultiset2)) return 1;
+         if(!CheckEqualContainers(shmmultimap2, stdmultimap2)) return 1;
+
          segment.destroy_ptr(shmmap2);
-         segment.destroy_ptr(shmmultiset2);
+         segment.destroy_ptr(shmmultimap2);
          delete stdmap2;
-         delete stdmultiset2;
+         delete stdmultimap2;
       }
 
       int i, j;
       for(i = 0; i < max; ++i){
-         shmmap->insert(move(IntPairType (move(IntType(i)), move(IntType(i)))));
+         shmmap->insert(detail::move_impl(IntPairType (detail::move_impl(IntType(i)), detail::move_impl(IntType(i)))));
          stdmap->insert(StdPairType(i, i));
-         shmmultimap->insert(move(IntPairType(move(IntType(i)), move(IntType(i)))));
+         shmmultimap->insert(detail::move_impl(IntPairType(detail::move_impl(IntType(i)), detail::move_impl(IntType(i)))));
          stdmultimap->insert(StdPairType(i, i));
       }
 
@@ -231,9 +232,9 @@ int map_test ()
       }
 
       for(i = 0; i < max; ++i){
-         shmmap->insert(move(IntPairType(move(IntType(i)), move(IntType(i)))));
+         shmmap->insert(detail::move_impl(IntPairType(detail::move_impl(IntType(i)), detail::move_impl(IntType(i)))));
          stdmap->insert(StdPairType(i, i));
-         shmmultimap->insert(move(IntPairType(move(IntType(i)), move(IntType(i)))));
+         shmmultimap->insert(detail::move_impl(IntPairType(detail::move_impl(IntType(i)), detail::move_impl(IntType(i)))));
          stdmultimap->insert(StdPairType(i, i));
       }
 
@@ -241,10 +242,10 @@ int map_test ()
       if(!CheckEqualPairContainers(shmmultimap, stdmultimap)) return 1;
 
       for(i = 0; i < max; ++i){
-         shmmap->insert(shmmap->begin(), move(IntPairType(move(IntType(i)), move(IntType(i)))));
+         shmmap->insert(shmmap->begin(), detail::move_impl(IntPairType(detail::move_impl(IntType(i)), detail::move_impl(IntType(i)))));
          stdmap->insert(stdmap->begin(), StdPairType(i, i));
          //PrintContainers(shmmap, stdmap);
-         shmmultimap->insert(shmmultimap->begin(), move(IntPairType(move(IntType(i)), move(IntType(i)))));
+         shmmultimap->insert(shmmultimap->begin(), detail::move_impl(IntPairType(detail::move_impl(IntType(i)), detail::move_impl(IntType(i)))));
          stdmultimap->insert(stdmultimap->begin(), StdPairType(i, i));
          //PrintContainers(shmmultimap, stdmultimap);
          if(!CheckEqualPairContainers(shmmap, stdmap))
@@ -252,29 +253,29 @@ int map_test ()
          if(!CheckEqualPairContainers(shmmultimap, stdmultimap))
             return 1;
 
-         shmmap->insert(shmmap->end(), move(IntPairType(move(IntType(i)), move(IntType(i)))));
+         shmmap->insert(shmmap->end(), detail::move_impl(IntPairType(detail::move_impl(IntType(i)), detail::move_impl(IntType(i)))));
          stdmap->insert(stdmap->end(), StdPairType(i, i));
-         shmmultimap->insert(shmmultimap->end(), move(IntPairType(move(IntType(i)), move(IntType(i)))));
+         shmmultimap->insert(shmmultimap->end(), detail::move_impl(IntPairType(detail::move_impl(IntType(i)), detail::move_impl(IntType(i)))));
          stdmultimap->insert(stdmultimap->end(), StdPairType(i, i));
          if(!CheckEqualPairContainers(shmmap, stdmap))
             return 1;
          if(!CheckEqualPairContainers(shmmultimap, stdmultimap))
             return 1;
 
-         shmmap->insert(shmmap->lower_bound(IntType(i)), move(IntPairType(move(IntType(i)), move(IntType(i)))));
+         shmmap->insert(shmmap->lower_bound(IntType(i)), detail::move_impl(IntPairType(detail::move_impl(IntType(i)), detail::move_impl(IntType(i)))));
          stdmap->insert(stdmap->lower_bound(i), StdPairType(i, i));
          //PrintContainers(shmmap, stdmap);
-         shmmultimap->insert(shmmultimap->lower_bound(IntType(i)), move(IntPairType(move(IntType(i)), move(IntType(i)))));
+         shmmultimap->insert(shmmultimap->lower_bound(IntType(i)), detail::move_impl(IntPairType(detail::move_impl(IntType(i)), detail::move_impl(IntType(i)))));
          stdmultimap->insert(stdmultimap->lower_bound(i), StdPairType(i, i));
          //PrintContainers(shmmultimap, stdmultimap);
          if(!CheckEqualPairContainers(shmmap, stdmap))
             return 1;
          if(!CheckEqualPairContainers(shmmultimap, stdmultimap))
             return 1;
-         shmmap->insert(shmmap->upper_bound(IntType(i)), move(IntPairType(move(IntType(i)), move(IntType(i)))));
+         shmmap->insert(shmmap->upper_bound(IntType(i)), detail::move_impl(IntPairType(detail::move_impl(IntType(i)), detail::move_impl(IntType(i)))));
          stdmap->insert(stdmap->upper_bound(i), StdPairType(i, i));
          //PrintContainers(shmmap, stdmap);
-         shmmultimap->insert(shmmultimap->upper_bound(IntType(i)), move(IntPairType(move(IntType(i)), move(IntType(i)))));
+         shmmultimap->insert(shmmultimap->upper_bound(IntType(i)), detail::move_impl(IntPairType(detail::move_impl(IntType(i)), detail::move_impl(IntType(i)))));
          stdmultimap->insert(stdmultimap->upper_bound(i), StdPairType(i, i));
          //PrintContainers(shmmultimap, stdmultimap);
          if(!CheckEqualPairContainers(shmmap, stdmap))
@@ -295,13 +296,15 @@ int map_test ()
       }
 
       //Now do count exercise
+      shmmap->erase(shmmap->begin(), shmmap->end());
+      shmmultimap->erase(shmmultimap->begin(), shmmultimap->end());
       shmmap->clear();
       shmmultimap->clear();
 
       for(j = 0; j < 3; ++j)
       for(i = 0; i < 100; ++i){
-         shmmap->insert(move(IntPairType(move(IntType(i)), move(IntType(i)))));
-         shmmultimap->insert(move(IntPairType(move(IntType(i)), move(IntType(i)))));
+         shmmap->insert(detail::move_impl(IntPairType(detail::move_impl(IntType(i)), detail::move_impl(IntType(i)))));
+         shmmultimap->insert(detail::move_impl(IntPairType(detail::move_impl(IntType(i)), detail::move_impl(IntType(i)))));
          if(shmmap->count(IntType(i)) != typename MyShmMultiMap::size_type(1))
             return 1;
          if(shmmultimap->count(IntType(i)) != typename MyShmMultiMap::size_type(j+1))
@@ -364,9 +367,9 @@ int map_test_copyable ()
 
    int i;
    for(i = 0; i < max; ++i){
-      shmmap->insert(move(IntPairType(move(IntType(i)), move(IntType(i)))));
+      shmmap->insert(detail::move_impl(IntPairType(detail::move_impl(IntType(i)), detail::move_impl(IntType(i)))));
       stdmap->insert(StdPairType(i, i));
-      shmmultimap->insert(move(IntPairType(move(IntType(i)), move(IntType(i)))));
+      shmmultimap->insert(detail::move_impl(IntPairType(detail::move_impl(IntType(i)), detail::move_impl(IntType(i)))));
       stdmultimap->insert(StdPairType(i, i));
    }
    if(!CheckEqualContainers(shmmap, stdmap)) return 1;

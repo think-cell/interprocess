@@ -36,10 +36,11 @@ struct push_data_function
       typedef typename MyShmList::value_type IntType;
       for(int i = 0; i < max; ++i){
          IntType move_me(i);
-         shmlist->push_back(move(move_me));
+         shmlist->push_back(detail::move_impl(move_me));
          stdlist->push_back(i);
       }
-      if(!CheckEqualContainers(shmlist, stdlist)) return 1;
+      if(!CheckEqualContainers(shmlist, stdlist))
+         return 1;
       return 0;
    }
 };
@@ -53,10 +54,11 @@ struct push_data_function<false>
       typedef typename MyShmList::value_type IntType;
       for(int i = 0; i < max; ++i){
          IntType move_me(i);
-         shmlist->push_front(move(move_me));
+         shmlist->push_front(detail::move_impl(move_me));
          stdlist->push_front(i);
       }
-      if(!CheckEqualContainers(shmlist, stdlist)) return 1;
+      if(!CheckEqualContainers(shmlist, stdlist))
+         return 1;
       return 0;
    }
 };
@@ -69,7 +71,8 @@ struct pop_back_function
    {
       shmlist->pop_back();
       stdlist->pop_back();
-      if(!CheckEqualContainers(shmlist, stdlist)) return 1;
+      if(!CheckEqualContainers(shmlist, stdlist))
+         return 1;
       return 0;
    }
 };
@@ -133,7 +136,7 @@ int list_test (bool copied_allocators_equal = true)
          IntType aux_vect[50];
          for(int i = 0; i < 50; ++i){
             IntType move_me(-1);
-            aux_vect[i] = move(move_me);
+            aux_vect[i] = detail::move_impl(move_me);
          }
          int aux_vect2[50];
          for(int i = 0; i < 50; ++i){
@@ -163,7 +166,7 @@ int list_test (bool copied_allocators_equal = true)
          IntType aux_vect[50];
          for(int i = 0; i < 50; ++i){
             IntType move_me(-1);
-            aux_vect[i] = move(move_me);
+            aux_vect[i] = detail::move_impl(move_me);
          }
          int aux_vect2[50];
          for(int i = 0; i < 50; ++i){
@@ -177,12 +180,14 @@ int list_test (bool copied_allocators_equal = true)
 
       shmlist->unique();
       stdlist->unique();
-      if(!CheckEqualContainers(shmlist, stdlist)) return 1;
+      if(!CheckEqualContainers(shmlist, stdlist))
+         return 1;
 
       if(copied_allocators_equal){
          shmlist->sort(std::greater<IntType>());
          stdlist->sort(std::greater<int>());
-         if(!CheckEqualContainers(shmlist, stdlist)) return 1;
+         if(!CheckEqualContainers(shmlist, stdlist))
+            return 1;
       }
 
       shmlist->resize(25);
@@ -191,7 +196,8 @@ int list_test (bool copied_allocators_equal = true)
       stdlist->resize(50);
       shmlist->resize(0);
       stdlist->resize(0);
-      if(!CheckEqualContainers(shmlist, stdlist)) return 1;
+      if(!CheckEqualContainers(shmlist, stdlist))
+         return 1;
 
       if(push_data_t::execute(max, shmlist, stdlist)){
          return 1;
@@ -209,7 +215,8 @@ int list_test (bool copied_allocators_equal = true)
          if(copied_allocators_equal){
             shmlist->splice(shmlist->begin(), othershmlist);
             stdlist->splice(stdlist->begin(), otherstdlist);
-            if(!CheckEqualContainers(shmlist, stdlist)) return 1;   
+            if(!CheckEqualContainers(shmlist, stdlist))
+               return 1;   
          }
 
          listsize = (int)shmlist->size();
@@ -225,15 +232,18 @@ int list_test (bool copied_allocators_equal = true)
          if(copied_allocators_equal){
             shmlist->sort(std::greater<IntType>());
             stdlist->sort(std::greater<int>());
-            if(!CheckEqualContainers(shmlist, stdlist)) return 1;
+            if(!CheckEqualContainers(shmlist, stdlist))
+               return 1;
 
             othershmlist.sort(std::greater<IntType>());
             otherstdlist.sort(std::greater<int>());
-            if(!CheckEqualContainers(&othershmlist, &otherstdlist)) return 1;
+            if(!CheckEqualContainers(&othershmlist, &otherstdlist))
+               return 1;
 
             shmlist->merge(othershmlist, std::greater<IntType>());
             stdlist->merge(otherstdlist, std::greater<int>());
-            if(!CheckEqualContainers(shmlist, stdlist)) return 1;   
+            if(!CheckEqualContainers(shmlist, stdlist))
+               return 1;
          }
       }
 

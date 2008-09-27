@@ -1,6 +1,6 @@
 ///////////////////////////////////////////////////////////////////////////////
 //
-// (C) Copyright Ion Gaztanaga 2005-2007. Distributed under the Boost
+// (C) Copyright Ion Gaztanaga 2005-2008. Distributed under the Boost
 // Software License, Version 1.0. (See accompanying file
 // LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
@@ -48,21 +48,16 @@ namespace interprocess {
 template<class T, class SegmentManager>
 class allocator 
 {
+   public:
+   //Segment manager
+   typedef SegmentManager                                segment_manager;
+   typedef typename SegmentManager::void_pointer         void_pointer;
+
    /// @cond
    private:
 
-   struct cast_functor
-   {
-      typedef typename detail::add_reference<T>::type result_type;
-      result_type operator()(char *ptr) const
-      {  return *static_cast<T*>(static_cast<void*>(ptr));  }
-   };
-
    //Self type
    typedef allocator<T, SegmentManager>   self_t;
-
-   //Segment manager
-   typedef SegmentManager                 segment_manager;
 
    //Pointer to void
    typedef typename segment_manager::void_pointer  aux_pointer_t;
@@ -108,7 +103,11 @@ class allocator
    typedef transform_iterator
       < typename SegmentManager::
          multiallocation_iterator
-      , cast_functor>                           multiallocation_iterator;
+      , detail::cast_functor <T> >              multiallocation_iterator;
+   typedef detail::multiallocation_chain_adaptor
+      <typename SegmentManager::
+         multiallocation_chain
+      , T>                                      multiallocation_chain;
 
    /// @endcond
 
@@ -146,7 +145,7 @@ class allocator
    pointer allocate(size_type count, cvoid_ptr hint = 0)
    {
       (void)hint;
-      if(count > ((size_type)-1)/sizeof(T))
+      if(count > this->max_size())
          throw bad_alloc();
       return pointer((value_type*)mp_mngr->allocate(count*sizeof(T)));
    }
@@ -154,7 +153,7 @@ class allocator
    //!Deallocates memory previously allocated.
    //!Never throws
    void deallocate(const pointer &ptr, size_type)
-   {  mp_mngr->deallocate(detail::get_pointer(ptr));  }
+   {  mp_mngr->deallocate((void*)detail::get_pointer(ptr));  }
 
    //!Returns the number of elements that could be allocated.
    //!Never throws
@@ -166,7 +165,13 @@ class allocator
    friend void swap(self_t &alloc1, self_t &alloc2)
    {  detail::do_swap(alloc1.mp_mngr, alloc2.mp_mngr);   }
 
-   //Experimental version 2 allocator functions
+   //!Returns maximum the number of objects the previously allocated memory
+   //!pointed by p can hold. This size only works for memory allocated with
+   //!allocate, allocation_command and allocate_many.
+   size_type size(const pointer &p) const
+   {  
+      return (size_type)mp_mngr->size(detail::get_pointer(p))/sizeof(T);
+   }
 
    std::pair<pointer, bool>
       allocation_command(allocation_type command,
@@ -178,43 +183,7 @@ class allocator
          (command, limit_size, preferred_size, received_size, detail::get_pointer(reuse));
    }
 
-   //!Returns maximum the number of objects the previously allocated memory
-   //!pointed by p can hold.
-   size_type size(const pointer &p) const
-   {  
-      return (size_type)mp_mngr->size(detail::get_pointer(p))/sizeof(T);
-   }
-
-   //!Allocates just one object. Memory allocated with this function
-   //!must be deallocated only with deallocate_one().
-   //!Throws boost::interprocess::bad_alloc if there is no enough memory
-   pointer allocate_one()
-   {  return this->allocate(1);  }
-
-   /// @cond
-
-   //Experimental. Don't use.
-
-   //!Allocates many elements of size == 1 in a contiguous chunk
-   //!of memory. The minimum number to be allocated is min_elements,
-   //!the preferred and maximum number is
-   //!preferred_elements. The number of actually allocated elements is
-   //!will be assigned to received_size. Memory allocated with this function
-   //!must be deallocated only with deallocate_one().
-   multiallocation_iterator allocate_individual(std::size_t num_elements)
-   {  return this->allocate_many(1, num_elements); }
-
-   /// @endcond
-
-   //!Deallocates memory previously allocated with allocate_one().
-   //!You should never use deallocate_one to deallocate memory allocated
-   //!with other functions different from allocate_one(). Never throws
-   void deallocate_one(const pointer &p)
-   {  return this->deallocate(p, 1);  }
-
-   /// @cond
-
-   //!Allocates many elements of size elem_size in a contiguous chunk
+   //!Allocates many elements of size elem_size in a contiguous block
    //!of memory. The minimum number to be allocated is min_elements,
    //!the preferred and maximum number is
    //!preferred_elements. The number of actually allocated elements is
@@ -227,7 +196,7 @@ class allocator
    }
 
    //!Allocates n_elements elements, each one of size elem_sizes[i]in a
-   //!contiguous chunk
+   //!contiguous block
    //!of memory. The elements must be deallocated
    multiallocation_iterator allocate_many(const size_type *elem_sizes, size_type n_elements)
    {
@@ -235,10 +204,44 @@ class allocator
          (mp_mngr->allocate_many(elem_sizes, n_elements, sizeof(T)));
    }
 
-   /// @endcond
+   //!Allocates many elements of size elem_size in a contiguous block
+   //!of memory. The minimum number to be allocated is min_elements,
+   //!the preferred and maximum number is
+   //!preferred_elements. The number of actually allocated elements is
+   //!will be assigned to received_size. The elements must be deallocated
+   //!with deallocate(...)
+   void deallocate_many(multiallocation_iterator it)
+   {  return mp_mngr->deallocate_many(it.base()); }
 
-   //These functions are obsolete. These are here to conserve
-   //backwards compatibility with containers using them...
+   //!Allocates just one object. Memory allocated with this function
+   //!must be deallocated only with deallocate_one().
+   //!Throws boost::interprocess::bad_alloc if there is no enough memory
+   pointer allocate_one()
+   {  return this->allocate(1);  }
+
+   //!Allocates many elements of size == 1 in a contiguous block
+   //!of memory. The minimum number to be allocated is min_elements,
+   //!the preferred and maximum number is
+   //!preferred_elements. The number of actually allocated elements is
+   //!will be assigned to received_size. Memory allocated with this function
+   //!must be deallocated only with deallocate_one().
+   multiallocation_iterator allocate_individual(std::size_t num_elements)
+   {  return this->allocate_many(1, num_elements); }
+
+   //!Deallocates memory previously allocated with allocate_one().
+   //!You should never use deallocate_one to deallocate memory allocated
+   //!with other functions different from allocate_one(). Never throws
+   void deallocate_one(const pointer &p)
+   {  return this->deallocate(p, 1);  }
+
+   //!Allocates many elements of size == 1 in a contiguous block
+   //!of memory. The minimum number to be allocated is min_elements,
+   //!the preferred and maximum number is
+   //!preferred_elements. The number of actually allocated elements is
+   //!will be assigned to received_size. Memory allocated with this function
+   //!must be deallocated only with deallocate_one().
+   void deallocate_individual(multiallocation_iterator it)
+   {  return this->deallocate_many(it); }
 
    //!Returns address of mutable object.
    //!Never throws
@@ -250,10 +253,15 @@ class allocator
    const_pointer address(const_reference value) const
    {  return const_pointer(boost::addressof(value));  }
 
+   //!Copy construct an object
+   //!Throws if T's copy constructor throws
+   void construct(const pointer &ptr, const_reference v)
+   {  new((void*)detail::get_pointer(ptr)) value_type(v);  }
+
    //!Default construct an object. 
-   //!Throws if T's default constructor throws*/
+   //!Throws if T's default constructor throws
    void construct(const pointer &ptr)
-   {  new(detail::get_pointer(ptr)) value_type;  }
+   {  new((void*)detail::get_pointer(ptr)) value_type;  }
 
    //!Destroys object. Throws if object's
    //!destructor throws

@@ -9,13 +9,15 @@
 //////////////////////////////////////////////////////////////////////////////
 
 #include <boost/interprocess/detail/config_begin.hpp>
-#include <fstream>
+#include <ios> //std::streamoff
+#include <fstream>   //std::ofstream, std::ifstream
 #include <iostream>
 #include <boost/interprocess/file_mapping.hpp>
 #include <boost/interprocess/mapped_region.hpp>
-#include <memory>
-#include <cstdio>
-#include <string>
+#include <memory>    //std::auto_ptr
+#include <stdexcept> //std::exception
+#include <cstdio>    //std::remove
+#include <cstddef>   //std::size_t
 #include "get_process_id_name.hpp"
 
 using namespace boost::interprocess;
@@ -119,6 +121,13 @@ int main ()
                return 1;
             }
          }
+      }
+      {
+         //Now test move semantics
+         file_mapping mapping(test::get_process_id_name(), read_only);
+         file_mapping move_ctor(detail::move_impl(mapping));
+         file_mapping move_assign;
+         move_assign = detail::move_impl(move_ctor);
       }
    }
    catch(std::exception &exc){

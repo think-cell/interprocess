@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-// (C) Copyright Ion Gaztanaga 2005-2007. Distributed under the Boost
+// (C) Copyright Ion Gaztanaga 2005-2008. Distributed under the Boost
 // Software License, Version 1.0. (See accompanying file
 // LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
@@ -29,37 +29,6 @@
 namespace boost {
 namespace interprocess {
 
-/// @cond
-namespace detail {
-
-   //!This class defines an operator() that creates a heap memory
-   //!of the requested size. The rest of the parameters are
-   //!passed in the constructor. The class a template parameter
-   //!to be used with create_from_file/create_from_istream functions
-   //!of basic_named_object classes
-   class heap_mem_creator_t
-   {
-      public:
-      heap_mem_creator_t(std::vector<char> &heapmem)
-      : m_heapmem(heapmem){}
-
-      void *operator()(std::size_t size)
-      {
-         BOOST_TRY{
-            m_heapmem.resize(size, char(0));
-         }
-         BOOST_CATCH(...){
-            return 0;
-         }
-         BOOST_CATCH_END
-         return &m_heapmem[0];
-      }      
-      private:
-      std::vector<char> &m_heapmem;
-   };
-}  //namespace detail {
-/// @endcond
-
 //!A basic heap memory named object creation class. Initializes the 
 //!heap memory segment. Inherits all basic functionality from 
 //!basic_managed_memory_impl<CharType, AllocationAlgorithm, IndexType>*/
@@ -81,7 +50,8 @@ class basic_managed_heap_memory
 
    public: //functions
 
-   //!Constructor. Never throws.
+   //!Default constructor. Does nothing.
+   //!Useful in combination with move semantics
    basic_managed_heap_memory(){}
 
    //!Destructor. Liberates the heap memory holding the managed data.
@@ -103,7 +73,7 @@ class basic_managed_heap_memory
    //!Moves the ownership of "moved"'s managed memory to *this. Does not throw
    #ifndef BOOST_INTERPROCESS_RVALUE_REFERENCE
    basic_managed_heap_memory
-      (detail::moved_object<basic_managed_heap_memory> &moved)
+      (detail::moved_object<basic_managed_heap_memory> moved)
    {  this->swap(moved.get());   }
    #else
    basic_managed_heap_memory(basic_managed_heap_memory &&moved)
@@ -113,7 +83,7 @@ class basic_managed_heap_memory
    //!Moves the ownership of "moved"'s managed memory to *this. Does not throw
    #ifndef BOOST_INTERPROCESS_RVALUE_REFERENCE
    basic_managed_heap_memory &operator=
-      (detail::moved_object<basic_managed_heap_memory> &moved)
+      (detail::moved_object<basic_managed_heap_memory> moved)
    {  this->swap(moved.get());   return *this;  }
    #else
    basic_managed_heap_memory &operator=
@@ -169,6 +139,25 @@ class basic_managed_heap_memory
    std::vector<char>  m_heapmem;
    /// @endcond
 };
+
+///@cond
+
+//!Trait class to detect if a type is
+//!movable
+template
+      <
+         class CharType, 
+         class AllocationAlgorithm, 
+         template<class IndexConfig> class IndexType
+      >
+struct is_movable<basic_managed_heap_memory
+   <CharType,  AllocationAlgorithm, IndexType>
+>
+{
+   static const bool value = true;
+};
+
+///@endcond
 
 }  //namespace interprocess {
 

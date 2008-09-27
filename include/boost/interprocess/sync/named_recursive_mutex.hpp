@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-// (C) Copyright Ion Gaztanaga 2005-2007. Distributed under the Boost
+// (C) Copyright Ion Gaztanaga 2005-2008. Distributed under the Boost
 // Software License, Version 1.0. (See accompanying file
 // LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
@@ -30,6 +30,10 @@
 
 namespace boost {
 namespace interprocess {
+
+/// @cond
+namespace detail{ class interprocess_tester; }
+/// @endcond
 
 //!A recursive mutex with a global name, so it can be found from different 
 //!processes. This mutex can't be placed in shared memory, and
@@ -93,16 +97,24 @@ class named_recursive_mutex
 
    /// @cond
    private:
+   friend class detail::interprocess_tester;
+   void dont_close_on_destruction();
+
    interprocess_recursive_mutex *mutex() const
-   {  return static_cast<interprocess_recursive_mutex*>(m_shmem.get_address()); }
+   {  return static_cast<interprocess_recursive_mutex*>(m_shmem.get_user_address()); }
 
    detail::managed_open_or_create_impl<shared_memory_object> m_shmem;
    typedef detail::named_creation_functor<interprocess_recursive_mutex> construct_func_t;
    /// @endcond
 };
 
+/// @cond
+
 inline named_recursive_mutex::~named_recursive_mutex()
 {}
+
+inline void named_recursive_mutex::dont_close_on_destruction()
+{  detail::interprocess_tester::dont_close_on_destruction(m_shmem);  }
 
 inline named_recursive_mutex::named_recursive_mutex(create_only_t, const char *name)
    :  m_shmem  (create_only
@@ -148,6 +160,8 @@ inline bool named_recursive_mutex::timed_lock(const boost::posix_time::ptime &ab
 
 inline bool named_recursive_mutex::remove(const char *name)
 {  return shared_memory_object::remove(name); }
+
+/// @endcond
 
 }  //namespace interprocess {
 }  //namespace boost {

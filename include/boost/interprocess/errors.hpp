@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-// (C) Copyright Ion Gaztanaga 2005-2007. Distributed under the Boost
+// (C) Copyright Ion Gaztanaga 2005-2008. Distributed under the Boost
 // Software License, Version 1.0. (See accompanying file
 // LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
@@ -10,8 +10,8 @@
 //
 //////////////////////////////////////////////////////////////////////////////
 //
-//  Copyright © 2002 Beman Dawes
-//  Copyright © 2001 Dietmar Kühl 
+//  Copyright (C) 2002 Beman Dawes
+//  Copyright (C) 2001 Dietmar Kuehl 
 //  Use, modification, and distribution is subject to the Boost Software
 //  License, Version 1.0. (See accompanying file LICENSE_1_0.txt or copy
 //  at http://www.boost.org/LICENSE_1_0.txt)
@@ -38,6 +38,7 @@
 #else
 #  ifdef BOOST_HAS_UNISTD_H
 #    include <errno.h>        //Errors
+#    include <cstring>        //strerror
 #  else  //ifdef BOOST_HAS_UNISTD_H
 #    error Unknown platform
 #  endif //ifdef BOOST_HAS_UNISTD_H

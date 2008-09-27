@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-// (C) Copyright Ion Gaztanaga 2005-2007.
+// (C) Copyright Ion Gaztanaga 2005-2008.
 // (C) Copyright Gennaro Prota 2003 - 2004.
 //
 // Distributed under the Boost Software License, Version 1.0.
@@ -232,7 +232,7 @@ class repeat_iterator
   : public std::iterator
       <std::random_access_iterator_tag, T, Difference>
 {
-   typedef repeat_iterator this_type;
+   typedef repeat_iterator<T, Difference> this_type;
    public:
    explicit repeat_iterator(T &ref, Difference range_size)
       :  m_ptr(&ref), m_num(range_size){}
@@ -241,55 +241,55 @@ class repeat_iterator
    repeat_iterator()
       :  m_ptr(0), m_num(0){}
 
-   repeat_iterator& operator++() 
+   this_type& operator++() 
    { increment();   return *this;   }
    
-   repeat_iterator operator++(int)
+   this_type operator++(int)
    {
-      repeat_iterator result (*this);
+      this_type result (*this);
       increment();
       return result;
    }
 
-   friend bool operator== (const repeat_iterator& i, const repeat_iterator& i2)
+   friend bool operator== (const this_type& i, const this_type& i2)
    { return i.equal(i2); }
 
-   friend bool operator!= (const repeat_iterator& i, const repeat_iterator& i2)
+   friend bool operator!= (const this_type& i, const this_type& i2)
    { return !(i == i2); }
 
-   friend bool operator< (const repeat_iterator& i, const repeat_iterator& i2)
+   friend bool operator< (const this_type& i, const this_type& i2)
    { return i.less(i2); }
 
-   friend bool operator> (const repeat_iterator& i, const repeat_iterator& i2)
+   friend bool operator> (const this_type& i, const this_type& i2)
    { return i2 < i; }
 
-   friend bool operator<= (const repeat_iterator& i, const repeat_iterator& i2)
+   friend bool operator<= (const this_type& i, const this_type& i2)
    { return !(i > i2); }
 
-   friend bool operator>= (const repeat_iterator& i, const repeat_iterator& i2)
+   friend bool operator>= (const this_type& i, const this_type& i2)
    { return !(i < i2); }
 
-   friend Difference operator- (const repeat_iterator& i, const repeat_iterator& i2)
+   friend Difference operator- (const this_type& i, const this_type& i2)
    { return i2.distance_to(i); }
 
    //Arithmetic
-   repeat_iterator& operator+=(Difference off)
+   this_type& operator+=(Difference off)
    {  this->advance(off); return *this;   }
 
-   repeat_iterator operator+(Difference off) const
+   this_type operator+(Difference off) const
    {
-      repeat_iterator other(*this);
+      this_type other(*this);
       other.advance(off);
       return other;
    }
 
-   friend repeat_iterator operator+(Difference off, const repeat_iterator& right)
+   friend this_type operator+(Difference off, const this_type& right)
    {  return right + off; }
 
-   repeat_iterator& operator-=(Difference off)
+   this_type& operator-=(Difference off)
    {  this->advance(-off); return *this;   }
 
-   repeat_iterator operator-(Difference off) const
+   this_type operator-(Difference off) const
    {  return *this + (-off);  }
 
    T& operator*() const
@@ -427,6 +427,12 @@ class transform_iterator
    operator_arrow_proxy<typename UnaryFunction::result_type>
       operator->() const
    { return operator_arrow_proxy<typename UnaryFunction::result_type>(dereference());  }
+
+   Iterator & base()
+   {  return m_it;   }
+
+   const Iterator & base() const
+   {  return m_it;   }
 
    private:
    Iterator m_it;

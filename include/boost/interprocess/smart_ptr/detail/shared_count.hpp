@@ -4,7 +4,7 @@
 //
 // (C) Copyright Peter Dimov and Multi Media Ltd. 2001, 2002, 2003
 // (C) Copyright Peter Dimov 2004-2005
-// (C) Copyright Ion Gaztanaga 2006-2007. Distributed under the Boost
+// (C) Copyright Ion Gaztanaga 2006-2008. Distributed under the Boost
 // Software License, Version 1.0. (See accompanying file
 // LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
@@ -73,6 +73,11 @@ class shared_count
    {}
 
    template <class Ptr>
+   shared_count(const shared_count &other_shared_count, const Ptr &p)
+      :  m_px(p), m_pi(other_shared_count.m_pi)
+   {}
+
+   template <class Ptr>
    shared_count(const Ptr &p, const VoidAllocator &a, Deleter d)
       :  m_px(p), m_pi(0)
    {
@@ -92,7 +97,7 @@ class shared_count
       }
       BOOST_CATCH (...){
          d(p); // delete p
-         throw;
+         BOOST_RETHROW
       }
       BOOST_CATCH_END
    }

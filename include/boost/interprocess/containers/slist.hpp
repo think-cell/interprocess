@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-// (C) Copyright Ion Gaztanaga 2004-2007. Distributed under the Boost
+// (C) Copyright Ion Gaztanaga 2004-2008. Distributed under the Boost
 // Software License, Version 1.0. (See accompanying file
 // LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
@@ -8,7 +8,7 @@
 //
 //////////////////////////////////////////////////////////////////////////////
 //
-// This file comes from SGI's stl_slist.h file. Modified by Ion Gaztanaga 2004-2007
+// This file comes from SGI's stl_slist.h file. Modified by Ion Gaztanaga 2004-2008
 // Renaming, isolating and porting to generic algorithms. Pointer typedef 
 // set to allocator::pointer to allow placing it in shared memory.
 //
@@ -87,7 +87,7 @@ struct slist_node
    #else
    template<class Convertible>
    slist_node(Convertible &&value)
-      : m_data(forward<Convertible>(value)){}
+      : m_data(detail::forward_impl<Convertible>(value)){}
    #endif
 
    T m_data;
@@ -226,11 +226,12 @@ class slist
    public:
    //! Const iterator used to iterate through a list. 
    class const_iterator
+      /// @cond
       : public std::iterator<std::forward_iterator_tag, 
                                  value_type,         list_difference_type, 
                                  list_const_pointer, list_const_reference>
    {
-      /// @cond
+
       protected:
       typename Icont::iterator m_it;
       explicit const_iterator(typename Icont::iterator it)  : m_it(it){}
@@ -239,7 +240,6 @@ class slist
       private:
       typename Icont::iterator get()
       {  return this->m_it;   }
-      /// @endcond
 
       public:
       friend class slist<T, A>;
@@ -270,12 +270,16 @@ class slist
 
       bool operator!=   (const const_iterator& r)  const
       {  return m_it != r.m_it;  }
-   };
+   }
+      /// @endcond
+   ;
 
    //! Iterator used to iterate through a list
-   class iterator : public const_iterator
-   {
+   class iterator
       /// @cond
+   : public const_iterator
+   {
+
       private:
       explicit iterator(typename Icont::iterator it)
          :  const_iterator(it)
@@ -283,7 +287,6 @@ class slist
    
       typename Icont::iterator get()
       {  return this->m_it;   }
-      /// @endcond
 
       public:
       friend class slist<T, A>;
@@ -303,7 +306,9 @@ class slist
 
       iterator operator++(int)
          { typename Icont::iterator tmp = this->m_it; ++*this; return iterator(tmp); }
-   };
+   }
+      /// @endcond
+   ;
 
    public:
    //! <b>Effects</b>: Constructs a list taking the allocator as parameter.
@@ -316,7 +321,7 @@ class slist
    {}
 
 //   explicit slist(size_type n)
-//      :  AllocHolder(move(allocator_type()))
+//      :  AllocHolder(detail::move_impl(allocator_type()))
 //   { this->resize(n); }
 
    //! <b>Effects</b>: Constructs a list that will use a copy of allocator a
@@ -342,7 +347,7 @@ class slist
    slist(InpIt first, InpIt last,
          const allocator_type& a =  allocator_type()) 
       : AllocHolder(a)
-   { this->insert_after(this->end_node(), first, last); }
+   { this->insert_after(this->before_begin(), first, last); }
 
    //! <b>Effects</b>: Copy constructs a list.
    //!
@@ -362,11 +367,11 @@ class slist
    //! <b>Complexity</b>: Constant.
    #ifndef BOOST_INTERPROCESS_RVALUE_REFERENCE
    slist(const detail::moved_object<slist> &x)
-      : AllocHolder(move((AllocHolder&)x.get()))
+      : AllocHolder(detail::move_impl((AllocHolder&)x.get()))
    {}
    #else
    slist(slist &&x)
-      : AllocHolder(move((AllocHolder&)x))
+      : AllocHolder(detail::move_impl((AllocHolder&)x))
    {}
    #endif
 
@@ -589,7 +594,7 @@ class slist
    {  this->icont().push_front(*this->create_node(x));  }
    #else
    void push_front(T && x)
-   {  this->icont().push_front(*this->create_node(move(x)));  }
+   {  this->icont().push_front(*this->create_node(detail::move_impl(x)));  }
    #endif
 
    //! <b>Effects</b>: Removes the first element from the list.
@@ -654,7 +659,7 @@ class slist
    {  return iterator(this->icont().insert_after(prev_pos.get(), *this->create_node(x))); }
    #else
    iterator insert_after(iterator prev_pos, value_type && x) 
-   {  return iterator(this->icont().insert_after(prev_pos.get(), *this->create_node(move(x)))); }
+   {  return iterator(this->icont().insert_after(prev_pos.get(), *this->create_node(detail::move_impl(x)))); }
    #endif
 
    //! <b>Requires</b>: prev_pos must be a valid iterator of *this.
@@ -712,7 +717,7 @@ class slist
    {  return this->insert_after(previous(p), x); }
    #else
    iterator insert(iterator p, value_type && x) 
-   {  return this->insert_after(previous(p), move(x)); }
+   {  return this->insert_after(previous(p), detail::move_impl(x)); }
    #endif
 
    //! <b>Requires</b>: p must be a valid iterator of *this.
@@ -799,7 +804,7 @@ class slist
    //! <b>Complexity</b>: Linear to the difference between size() and new_size.
    void resize(size_type new_size, const T& x)
    {
-      typename Icont::iterator end_n(this->icont().end()), cur(end_n), cur_next;
+      typename Icont::iterator end_n(this->icont().end()), cur(this->icont().before_begin()), cur_next;
       while (++(cur_next = cur) != end_n && new_size > 0){
          --new_size;
          cur = cur_next;
@@ -818,7 +823,7 @@ class slist
    //! <b>Complexity</b>: Linear to the difference between size() and new_size.
    void resize(size_type new_size)
    {
-      typename Icont::iterator end_n(this->icont().end()), cur(end_n), cur_next;
+      typename Icont::iterator end_n(this->icont().end()), cur(this->icont().before_begin()), cur_next;
       size_type len = this->size();
       size_type left = new_size;
       
@@ -830,7 +835,7 @@ class slist
          this->erase_after(iterator(cur), iterator(end_n));
       }
       else{
-         this->priv_create_and_insert_nodes(this->end(), new_size - len);
+         this->priv_create_and_insert_nodes(iterator(cur), new_size - len);
       }
    }
 
@@ -1247,9 +1252,9 @@ class slist
 
    void priv_fill_assign(size_type n, const T& val) 
    {
-      iterator end_n(end());
-      iterator prev(before_begin());
-      iterator node(begin());
+      iterator end_n(this->end());
+      iterator prev(this->before_begin());
+      iterator node(this->begin());
       for ( ; node != end_n && n > 0 ; --n){
          *node = val;
          prev = node;
@@ -1269,9 +1274,9 @@ class slist
    void priv_assign_dispatch(InpIt first, InpIt last,
                            detail::false_)
    {
-      iterator end_n(end());
-      iterator prev(before_begin());
-      iterator node(begin());
+      iterator end_n(this->end());
+      iterator prev(this->before_begin());
+      iterator node(this->begin());
       while (node != end_n && first != last){
          *node = *first;
          prev = node;
@@ -1290,7 +1295,7 @@ class slist
 
    template <class InIter>
    void priv_insert_after_range_dispatch(iterator prev_pos, InIter first, InIter last, detail::false_) 
-   {  return priv_create_and_insert_nodes(prev_pos, first, last); }
+   {  this->priv_create_and_insert_nodes(prev_pos, first, last); }
 
    //Functors for member algorithm defaults
    struct value_less
@@ -1421,7 +1426,8 @@ struct has_trivial_destructor_after_move<slist<T, A> >
 // Specialization of insert_iterator so that insertions will be constant
 // time rather than linear time.
 
-//iG
+///@cond
+
 //Ummm, I don't like to define things in namespace std, but 
 //there is no other way
 namespace std {
@@ -1459,7 +1465,7 @@ class insert_iterator<boost::interprocess::slist<T, A> >
 
 }  //namespace std;
 
-
+///@endcond
 
 #include <boost/interprocess/detail/config_end.hpp>
 
